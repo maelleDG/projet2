@@ -1,0 +1,237 @@
+import streamlit as st
+import pandas as pd
+from streamlit_option_menu import option_menu
+import ast
+
+# Barre latérale
+with st.sidebar:
+    # Ajout d'un titre à la barre latérale
+    st.title("Filtres")
+
+# Création de 2 colonnes
+col1, col2 = st.columns(2)
+
+# Contenu de la première colonne :
+with col1:
+    st.image(
+        "data:image/jpeg;base64,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"
+    )
+
+# Contenu de la deuxième colonne :
+with col2:
+    st.header("Analyse filmographique")
+
+# --- Chargement du dataset ---
+# Pour éviter de recharger si déjà chargé, utilisez st.session_state
+if "datasets_dispo" not in st.session_state:
+    st.session_state["datasets_dispo"] = {
+        "Acteurs": pd.read_parquet("acteurs.parquet"),
+        "Films": pd.read_parquet("film_fr_tmdb.parquet"),
+    }
+
+# Création d'une liste de dataset
+datasets_dispo = st.session_state["datasets_dispo"]
+
+# Ajouter la possibilité de choisir un dataset entre acteur et film
+theme = st.sidebar.selectbox("Choisissez un thème :", list(datasets_dispo.keys()))
+
+selected_dataframe = datasets_dispo[theme]
+
+st.write(
+    f"Vous avez sélectionné le thème: <span style='color: #FF5733;'>**{theme}**</span>",
+    unsafe_allow_html=True,
+)
+
+# --- Section d'analyse et d'affichage ---
+
+if theme == "Acteurs":
+    st.header("Analyses sur les Acteurs")
+
+    # 1. Nombre de films/séries par acteur (Top 10)
+    st.subheader("Top 10 des acteurs les plus prolifiques (nombre de titres connus)")
+    # Assurez-vous que la colonne 'actor_name' existe après vos renommages
+    if "Nom" in selected_dataframe.columns:
+        actor_counts = selected_dataframe["Nom"].value_counts().head(10)
+        st.dataframe(actor_counts)
+    else:
+        st.info(
+            "La colonne 'Nom' n'est pas trouvée dans le dataset Acteurs. Vérifiez vos renommages."
+        )
+
+    # 2. Acteurs uniques qui ont joué dans des films
+    st.subheader("Nombre d'acteurs uniques ayant joué dans des films")
+    if "Film?" in selected_dataframe.columns and "Nom" in selected_dataframe.columns:
+        unique_movie_actors_count = selected_dataframe[selected_dataframe["Film?"]][
+            "Nom"
+        ].nunique()
+        st.write(
+            f"Il y a **{unique_movie_actors_count}** acteurs uniques ayant joué dans des films."
+        )
+    else:
+        st.info("Les colonnes 'Film?' ou 'Nom' sont manquantes pour cette analyse.")
+
+    # --- 3. Répartition des genres par décennie pour les films d'acteurs (avec filtre déroulant) ---
+    st.subheader("Top 5 des genres de films par décennie")
+
+    if (
+        "Film?" in selected_dataframe.columns
+        and "decade" in selected_dataframe.columns
+        and "Genres" in selected_dataframe.columns
+    ):
+        # Obtenez toutes les décennies uniques et triez-les
+        all_decades = sorted(
+            [int(d) for d in selected_dataframe["decade"].dropna().unique().tolist()]
+        )
+
+        # Option "Toutes les décennies" pour afficher tous les tops 5
+        decade_options = ["Toutes les décennies"] + all_decades
+
+        # Liste déroulante pour sélectionner une décennie
+        selected_decade_filter = st.sidebar.selectbox(
+            "Filtrer par décennie (pour le Top 5 des genres) :", options=decade_options
+        )
+
+        if not all_decades:
+            st.info("Aucune donnée de décennie trouvée pour cette analyse.")
+        else:
+            if selected_decade_filter == "Toutes les décennies":
+                # Si "Toutes les décennies" est sélectionné, on boucle sur toutes
+                st.write("Affichage du Top 5 des genres pour chaque décennie :")
+                for decade in all_decades:
+                    st.write(f"##### Décennie: **{decade}s**")
+                    films_par_decade = selected_dataframe[
+                        (selected_dataframe["Film?"])
+                        & (selected_dataframe["decade"] == decade)
+                    ]
+                    if not films_par_decade.empty:
+                        top_genres = (
+                            films_par_decade["Genres"].explode().value_counts().head(5)
+                        )
+                        st.dataframe(top_genres)
+                    else:
+                        st.info(f"Pas de films trouvés pour la décennie {decade}s.")
+            else:
+                # Si une décennie spécifique est sélectionnée
+                decade = selected_decade_filter
+                st.write(f"##### Décennie sélectionnée: **{decade}s**")
+                films_par_decade = selected_dataframe[
+                    (selected_dataframe["Film?"])
+                    & (selected_dataframe["decade"] == decade)
+                ]
+                if not films_par_decade.empty:
+                    top_genres = (
+                        films_par_decade["Genres"].explode().value_counts().head(5)
+                    )
+                    st.dataframe(top_genres)
+                else:
+                    st.info(
+                        f"Pas de films trouvés pour la décennie {decade}s avec les critères sélectionnés."
+                    )
+    else:
+        st.info(
+            "Les colonnes nécessaires ('Film?', 'decade', 'Genres') sont manquantes pour cette analyse dans le dataset Acteurs."
+        )
+
+
+elif theme == "Films":
+    st.header("Analyses sur les Films")
+
+    # slider pour la durée minimale et maximale
+    selected_runtime_min, selected_runtime_max = st.sidebar.slider(
+        "Sélectionnez la plage de durée du film (en minutes) :",
+        min_value=int(selected_dataframe["runtime"].min()),
+        max_value=int(selected_dataframe["runtime"].max()),
+        value=(
+            int(selected_dataframe["runtime"].min()),
+            int(selected_dataframe["runtime"].max()),
+        ),  # Valeurs initiales min et max
+    )
+
+    # Nettoyage de chaque genre : suppression des espaces et uniformisation de la casse
+    selected_dataframe["genres"] = selected_dataframe["genres"].apply(
+        lambda x: ast.literal_eval(x) if isinstance(x, str) else x
+    )
+
+    # Nettoyage des genres (suppression des espaces et uniformisation de la casse)
+    # C'est important pour que 'Action ' et 'Action' ne soient pas considérés comme uniques.
+    selected_dataframe["genres"] = selected_dataframe["genres"].apply(
+        lambda genre_list: (
+            [g.strip().title() for g in genre_list]
+            if isinstance(genre_list, list)
+            else []
+        )
+    )
+
+    # 1. Utiliser `explode()` pour aplatir la liste de listes en une seule Series.
+    # 2. Utiliser `unique()` pour obtenir les valeurs uniques.
+    # 3. Convertir le résultat (un array NumPy) en une liste Python.
+    # 4. Trier la liste pour avoir un ordre prévisible.
+    genres_uniques_liste = sorted(
+        selected_dataframe["genres"].explode().dropna().unique().tolist()
+    )
+
+    # Menu déroulant multiselect
+    selected_genres = st.sidebar.multiselect(
+        "Sélectionnez un ou plusieurs genres :", genres_uniques_liste
+    )
+
+    # Application de filtres:
+    filtered_df = selected_dataframe.copy()
+
+    # Filtrer le DataFrame selon la sélection de temps (plage min et max)
+    filtered_df = filtered_df[
+        (filtered_df["runtime"] >= selected_runtime_min)
+        & (filtered_df["runtime"] <= selected_runtime_max)
+    ]
+
+    # Filtrer le DataFrame selon la sélection de genre
+    # Cette partie doit s'appliquer au filtered_df qui a déjà le filtre de durée
+    if selected_genres:
+        filtered_df = filtered_df[  # IMPORTANT : Filtrer sur filtered_df, pas sur df
+            filtered_df["genres"].apply(
+                lambda genres: any(g in genres for g in selected_genres)
+            )
+        ]
+        st.write(
+            f"Films correspondant aux genres : {selected_genres} et durée entre {selected_runtime_min} et {selected_runtime_max} minutes"
+        )
+    else:
+        st.write(
+            f"Aucun genre sélectionné. Affichage de tous les films avec une durée entre {selected_runtime_min} et {selected_runtime_max} minutes."
+        )
+
+    # Afficher le DataFrame filtré après toutes les applications de filtres
+    st.dataframe(filtered_df)
+
+    # Pour illustrer, reprenons le filtrage de votre code précédent pour le thème Film
+    # 1. Slider pour la durée minimale et maximale (déjà dans votre code précédent)
+    #    Il faut s'assurer que ces variables (selected_runtime_min, selected_runtime_max, selected_genres)
+    #    sont définies ou déplacées dans ce bloc if.
+
+    # Pour que votre code de filtrage des films fonctionne ici:
+    # 1. Déplacez les lignes de création des sliders et multiselect dans ce bloc `if theme == "Films":`
+    # 2. Réinitialisez ou adaptez `genres_uniques_liste` en fonction de `selected_dataframe` (qui est maintenant le df des films)
+
+    # Exemple simplifié pour ne pas dupliquer tout le code de filtrage des films ici,
+    # mais pour montrer comment l'appeler si vous l'avez refactorisé dans une fonction.
+    # Sinon, vous devrez coller le code du slider et du multiselect ici.
+
+    # # Nettoyage de chaque genre pour le dataframe 'Films'
+    # selected_dataframe["genres"] = selected_dataframe["genres"].apply(
+    #     lambda x: ast.literal_eval(x) if isinstance(x, str) else x
+    # )
+    # # Nettoyage des genres (suppression des espaces et uniformisation de la casse)
+    # selected_dataframe["genres"] = selected_dataframe["genres"].apply(
+    #     lambda genre_list: (
+    #         [g.strip().title() for g in genre_list] if isinstance(genre_list, list) else []
+    #     )
+    # )
+    #
+    # genres_uniques_liste_films = sorted(selected_dataframe["genres"].explode().dropna().unique().tolist())
+    #
+    # selected_genres_films = st.sidebar.multiselect(
+    #     "Sélectionnez un ou plusieurs genres de films :", genres_uniques_liste_films
+    # )
+    #
+    # # Ajoutez ici les filtres de durée et de genre pour les films
+    # #...
