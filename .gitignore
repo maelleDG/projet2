@@ -1,0 +1,4 @@
+secret.txt
+*.gz
+*.tsv
+safe_data/
