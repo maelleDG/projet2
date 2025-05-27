@@ -5,7 +5,61 @@ import numpy as np
 
 con = db.connect()
 
-# --- Thème acteur ---
+# --- Analyse filmographique Thème acteur sur les 50 dernières années---
+
+# Création de la table complète avant filtre
+query = """select T1.nconst, T1.primaryName, T1.birthYear, T1.deathYear, T1.knownForTitles,
+T2.category, T2.job, T2.ordering, T2.characters, T3.tconst, T3.primaryTitle, T3.originalTitle, T3.startYear, T3.runtimeMinutes, 
+T3.genres, T4.averageRating, T4.numVotes
+from name.basics.tsv as T1
+join title.principals.tsv as T2 on T1.nconst = T2.nconst
+join title.basics.tsv as T3 on T2.tconst = T3.tconst
+join title.ratings.tsv as T4 on T3.tconst = T4.tconst
+where isAdult = 0 and titleType = 'movie'
+"""
+df_a = con.execute(query).df()
+
+# Remplacer des \N par None
+df_a.replace({"\\N": None}, inplace=True)
+# Supprimer les lignes où la colonne 'Genres' contient None
+df_a.dropna(subset=["genres"], inplace=True)
+# Supprimer les lignes où la colonne 'runTimeMinutes' contient None
+df_a.dropna(subset=["runtimeMinutes"], inplace=True)
+# Supprimer les lignes où la colonne 'startYear' contient None
+df_a.dropna(subset=["startYear"], inplace=True)
+
+# Convertir 'startYear' en numériques et en type nullable integer (Int64)
+df_a["startYear"] = pd.to_numeric(df_a["startYear"], errors="coerce").astype("Int64")
+# Convertir 'runtimeMinutes' en numériques et en type nullable integer (Int64)
+df_a["runtimeMinutes"] = pd.to_numeric(df_a["runtimeMinutes"], errors="coerce").astype(
+    "Int64"
+)
+
+# Nettoyage de la colonne runtimeMinute
+Q1 = df_a["runtimeMinutes"].quantile(0.25)
+Q3 = df_a["runtimeMinutes"].quantile(0.75)
+IQR = Q3 - Q1
+borne_inf = Q1 - 1.5 * IQR
+borne_sup_iqr = Q3 + 1.5 * IQR
+
+df_a2 = df_a[
+    (df_a["runtimeMinutes"] >= borne_inf) & (df_a["runtimeMinutes"] <= borne_sup_iqr)
+]
+
+print(f"Nombre de lignes avant suppression des outliers (IQR): {len(df_a)}")
+print(f"Nombre de lignes après suppression des outliers (IQR): {len(df_a2)}")
+
+df_a = df_a2  # Mise à jour du DF
+
+# Pour l'analyse on garde les 50 dernières années
+df_a50 = df_a[df_a["startYear"] >= 1975]
+
+# On conserve les valeurs actrices/acteurs/directeurs de la colonne category
+categories_to_keep = ["actress", "actor", "director"]
+
+# Filtrer le DataFrame
+df_a50 = df_a50[df_a50["category"].isin(categories_to_keep)]
+
 
 # Création de data1_filtered
 

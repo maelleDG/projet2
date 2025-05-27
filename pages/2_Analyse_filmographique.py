@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from streamlit_option_menu import option_menu
 import ast
+import plotly.express as px
 
 # Barre latérale
 with st.sidebar:
@@ -45,92 +46,199 @@ st.write(
 # --- Section d'analyse et d'affichage ---
 
 if theme == "Acteurs":
-    st.header("Analyses sur les Acteurs")
+    st.markdown(
+        "## <span style='text-decoration: underline;'>Analyses sur les Acteurs</span>",
+        unsafe_allow_html=True,
+    )
 
-    # 1. Nombre de films/séries par acteur (Top 10)
-    st.subheader("Top 10 des acteurs les plus prolifiques (nombre de titres connus)")
-    # Assurez-vous que la colonne 'actor_name' existe après vos renommages
-    if "Nom" in selected_dataframe.columns:
-        actor_counts = selected_dataframe["Nom"].value_counts().head(10)
-        st.dataframe(actor_counts)
-    else:
-        st.info(
-            "La colonne 'Nom' n'est pas trouvée dans le dataset Acteurs. Vérifiez vos renommages."
-        )
-
-    # 2. Acteurs uniques qui ont joué dans des films
-    st.subheader("Nombre d'acteurs uniques ayant joué dans des films")
-    if "Film?" in selected_dataframe.columns and "Nom" in selected_dataframe.columns:
-        unique_movie_actors_count = selected_dataframe[selected_dataframe["Film?"]][
-            "Nom"
-        ].nunique()
-        st.write(
-            f"Il y a **{unique_movie_actors_count}** acteurs uniques ayant joué dans des films."
-        )
-    else:
-        st.info("Les colonnes 'Film?' ou 'Nom' sont manquantes pour cette analyse.")
-
-    # --- 3. Répartition des genres par décennie pour les films d'acteurs (avec filtre déroulant) ---
-    st.subheader("Top 5 des genres de films par décennie")
-
-    if (
-        "Film?" in selected_dataframe.columns
-        and "decade" in selected_dataframe.columns
-        and "Genres" in selected_dataframe.columns
-    ):
-        # Obtenez toutes les décennies uniques et triez-les
-        all_decades = sorted(
+    # --- FILTRE COMMUN DES DÉCENNIES ---
+    # Nous définissons la selectbox une seule fois ici
+    if "decade" in selected_dataframe.columns:
+        all_decades_available = sorted(
             [int(d) for d in selected_dataframe["decade"].dropna().unique().tolist()]
         )
+        decade_options = ["Toutes les décennies"] + all_decades_available
 
-        # Option "Toutes les décennies" pour afficher tous les tops 5
-        decade_options = ["Toutes les décennies"] + all_decades
-
-        # Liste déroulante pour sélectionner une décennie
         selected_decade_filter = st.sidebar.selectbox(
-            "Filtrer par décennie (pour le Top 5 des genres) :", options=decade_options
+            "Filtrer les analyses par décennie :",  # Titre plus générique pour le filtre
+            options=decade_options,
+        )
+    else:
+        st.info(
+            "La colonne 'decade' est manquante, le filtre par décennie ne peut pas être appliqué."
+        )
+        selected_decade_filter = (
+            "Toutes les décennies"  # Valeur par défaut si la colonne manque
         )
 
-        if not all_decades:
-            st.info("Aucune donnée de décennie trouvée pour cette analyse.")
-        else:
-            if selected_decade_filter == "Toutes les décennies":
-                # Si "Toutes les décennies" est sélectionné, on boucle sur toutes
-                st.write("Affichage du Top 5 des genres pour chaque décennie :")
-                for decade in all_decades:
-                    st.write(f"##### Décennie: **{decade}s**")
-                    films_par_decade = selected_dataframe[
-                        (selected_dataframe["Film?"])
-                        & (selected_dataframe["decade"] == decade)
-                    ]
-                    if not films_par_decade.empty:
-                        top_genres = (
-                            films_par_decade["Genres"].explode().value_counts().head(5)
-                        )
-                        st.dataframe(top_genres)
-                    else:
-                        st.info(f"Pas de films trouvés pour la décennie {decade}s.")
+    # --- FILTRE: Type de contenu (Film/Série) pour les Acteurs ---
+    if "Type" in selected_dataframe.columns:
+        content_type_options = ["Tous les types"] + sorted(
+            selected_dataframe["Type"].dropna().unique().tolist()
+        )
+        selected_content_type_filter = st.sidebar.selectbox(
+            "Filtrer les analyses par type de contenu :",
+            options=content_type_options,
+        )
+    else:
+        st.info("La colonne 'Type' est manquante pour filtrer par type de contenu.")
+        selected_content_type_filter = "Tous les types"  # Valeur par défaut
+
+    # --- Application des filtres au DataFrame pour les analyses d'acteurs ---
+    filtered_actors_df = selected_dataframe.copy()
+
+    if selected_decade_filter != "Toutes les décennies":
+        filtered_actors_df = filtered_actors_df[
+            filtered_actors_df["decade"] == selected_decade_filter
+        ]
+
+    if selected_content_type_filter != "Tous les types":
+        filtered_actors_df = filtered_actors_df[
+            filtered_actors_df["Type"] == selected_content_type_filter
+        ]
+
+    # 1. Acteurs uniques qui ont joué dans des films (Adapté pour le nouveau filtre)
+    st.subheader("1. Nombre d'acteurs uniques")
+    if "Nom" in filtered_actors_df.columns:
+        unique_actors_count = filtered_actors_df["Nom"].nunique()
+        st.write(
+            f"Il y a <span style='color: #FF5733;'>**{unique_actors_count}**</span> acteurs "
+            f"pour la sélection actuelle.",
+            unsafe_allow_html=True,
+        )
+    else:
+        st.info("La colonne 'Nom' est manquante pour cette analyse.")
+
+    # 2. Âge moyen des acteurs (Adapté pour le nouveau filtre)
+    st.subheader("2. Évolution de l'âge moyen des acteurs par décennie")
+
+    if "decade" in filtered_actors_df.columns and (
+        "Age_actuel" in filtered_actors_df.columns
+        or "Age_deces" in filtered_actors_df.columns
+    ):
+        df_for_avg_age = filtered_actors_df.copy()
+        df_for_avg_age["Combined_Age"] = df_for_avg_age["Age_actuel"].fillna(
+            df_for_avg_age["Age_deces"]
+        )
+
+        df_avg_by_decade = df_for_avg_age.drop_duplicates(
+            subset=["ID_Acteur", "decade"]
+        )
+
+        if selected_decade_filter != "Toutes les décennies":
+            if df_avg_by_decade.empty:
+                st.info(
+                    f"Aucune donnée pour calculer l'âge moyen pour la décennie {selected_decade_filter}s "
+                    f"et le type {selected_content_type_filter}."
+                )
             else:
-                # Si une décennie spécifique est sélectionnée
-                decade = selected_decade_filter
-                st.write(f"##### Décennie sélectionnée: **{decade}s**")
-                films_par_decade = selected_dataframe[
-                    (selected_dataframe["Film?"])
-                    & (selected_dataframe["decade"] == decade)
-                ]
-                if not films_par_decade.empty:
-                    top_genres = (
-                        films_par_decade["Genres"].explode().value_counts().head(5)
-                    )
-                    st.dataframe(top_genres)
+                avg_age = df_avg_by_decade["Combined_Age"].mean()
+                st.write(
+                    f"L'âge moyen des acteurs actifs dans la décennie {selected_decade_filter}s "
+                    f"et le type {selected_content_type_filter} est de **{avg_age:.2f} ans**."
+                )
+        else:
+            average_age_by_decade = (
+                df_avg_by_decade.groupby("decade")["Combined_Age"].mean().reset_index()
+            )
+            average_age_by_decade.rename(
+                columns={"Combined_Age": "Age_Moyen"}, inplace=True
+            )
+
+            if not average_age_by_decade.empty:
+                fig_line = px.line(
+                    average_age_by_decade,
+                    x="decade",
+                    y="Age_Moyen",
+                    title=f"Évolution de l'âge moyen des acteurs par décennie (Type: {selected_content_type_filter})",
+                    labels={"decade": "Décennie", "Age_Moyen": "Âge Moyen (ans)"},
+                    markers=True,
+                )
+                fig_line.update_layout(xaxis_tickangle=-45)
+                st.plotly_chart(fig_line, use_container_width=True)
+            else:
+                st.info(
+                    "Aucune donnée d'âge moyenne par décennie trouvée pour cette sélection."
+                )
+    else:
+        st.info(
+            "Les colonnes nécessaires ('decade', 'Age_actuel', 'Age_deces') sont manquantes pour cette analyse."
+        )
+
+    # 3. Top 10 des acteurs les plus présents au fil des décennies (Adapté pour le nouveau filtre)
+    st.subheader("3. Top 10 des acteurs les plus présents au fil des décennies")
+
+    if "Nom" in filtered_actors_df.columns and "decade" in filtered_actors_df.columns:
+        actor_presence_by_decade_raw = (
+            filtered_actors_df.groupby(["decade", "Nom"])
+            .size()
+            .reset_index(name="Nombre_de_titres")
+        )
+
+        if not all_decades_available:
+            st.info(
+                "Aucune donnée de présence d'acteur par décennie trouvée pour cette analyse."
+            )
+        else:
+            decades_to_process_actors = []
+            if selected_decade_filter == "Toutes les décennies":
+                decades_to_process_actors = all_decades_available
+                st.write(
+                    f"Affichage du Top 10 des acteurs pour chaque décennie (Type: {selected_content_type_filter}) :"
+                )
+            else:
+                decades_to_process_actors = [selected_decade_filter]
+                st.write(
+                    f"##### Décennie sélectionnée: **{selected_decade_filter}s** (Type: **{selected_content_type_filter}**)"
+                )
+
+            for decade in decades_to_process_actors:
+                if selected_decade_filter == "Toutes les décennies":
+                    st.write(f"##### Décennie: **{int(decade)}s**")
+
+                top_actors_decade = (
+                    actor_presence_by_decade_raw[
+                        actor_presence_by_decade_raw["decade"] == decade
+                    ]
+                    .sort_values(by="Nombre_de_titres", ascending=False)
+                    .head(10)
+                )
+
+                if not top_actors_decade.empty:
+                    st.dataframe(top_actors_decade.set_index("Nom"))
                 else:
                     st.info(
-                        f"Pas de films trouvés pour la décennie {decade}s avec les critères sélectionnés."
+                        f"Aucun acteur trouvé pour la décennie {int(decade)}s et le type {selected_content_type_filter}."
                     )
     else:
         st.info(
-            "Les colonnes nécessaires ('Film?', 'decade', 'Genres') sont manquantes pour cette analyse dans le dataset Acteurs."
+            "Les colonnes 'Nom' ou 'decade' sont manquantes pour l'analyse de présence des acteurs."
         )
+
+    # 4. Acteurs présents au cinéma et dans les séries (Cette analyse reste spécifique)
+    st.subheader("4. Acteurs présents au cinéma et dans les séries")
+
+    if "Nom" in selected_dataframe.columns and "Type" in selected_dataframe.columns:
+        movie_actors = set(
+            selected_dataframe[selected_dataframe["Type"] == "Film"]["Nom"].unique()
+        )
+        series_actors = set(
+            selected_dataframe[selected_dataframe["Type"] == "Series"]["Nom"].unique()
+        )
+        actors_in_both = list(movie_actors.intersection(series_actors))
+
+        if actors_in_both:
+            st.write(
+                f"Il y a <span style='color: #FF5733;'>**{len(actors_in_both)}**</span> acteurs qui ont joué à la fois dans des films et des séries :",
+                unsafe_allow_html=True,
+            )
+            st.write(", ".join(sorted(actors_in_both)))
+        else:
+            st.info(
+                "Aucun acteur trouvé ayant joué à la fois dans des films et des séries."
+            )
+    else:
+        st.info("Les colonnes 'Nom' ou 'Type' sont manquantes pour cette analyse.")
 
 
 elif theme == "Films":
