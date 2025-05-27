@@ -53,6 +53,7 @@ patsy==1.0.1
 phik==0.12.4
 pillow==11.2.1
 platformdirs==4.3.7
+plotly==6.1.1
 polars==1.28.1
 prompt_toolkit==3.0.51
 protobuf==6.31.0
@@ -78,7 +79,6 @@ rpds-py==0.24.0
 scipy==1.15.2
 seaborn==0.13.2
 six==1.17.0
-skimpy==0.0.18
 smmap==5.0.2
 stack-data==0.6.3
 statsmodels==0.14.4
@@ -99,4 +99,3 @@ visions==0.8.1
 watchdog==6.0.0
 wcwidth==0.2.13
 wordcloud==1.9.4
-ydata-profiling==4.16.1
