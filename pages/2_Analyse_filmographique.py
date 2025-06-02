@@ -3,6 +3,9 @@ import pandas as pd
 from streamlit_option_menu import option_menu
 import ast
 import plotly.express as px
+import matplotlib.pyplot as plt
+import seaborn as sns
+import modules.graphique_acteurs as ga
 
 # Barre latérale
 with st.sidebar:
@@ -20,13 +23,16 @@ with col1:
 
 # Contenu de la deuxième colonne :
 with col2:
-    st.header("Analyse filmographique")
+    st.markdown(
+        "<h1 style='text-align: center; color: blue; font-size: 55px;'>Analyse filmographique</h1>",
+        unsafe_allow_html=True,
+    )
 
 # --- Chargement du dataset ---
 # Pour éviter de recharger si déjà chargé, utilisez st.session_state
 if "datasets_dispo" not in st.session_state:
     st.session_state["datasets_dispo"] = {
-        "Acteurs": pd.read_parquet("acteurs.parquet"),
+        "Acteurs": pd.read_parquet("Top10acteurs"),
         "Films": pd.read_parquet("film_fr_tmdb.parquet"),
     }
 
@@ -46,300 +52,44 @@ st.write(
 # --- Section d'analyse et d'affichage ---
 
 if theme == "Acteurs":
+    st.markdown("## Analyses sur les Acteurs")
+
+    # Explication de l'analyse
     st.markdown(
-        "## <span style='text-decoration: underline;'>Analyses sur les Acteurs</span>",
+        """
+        <div style='text-align: justify;'>
+        Pour l'analyse des acteurs, nous avons décidé de partir sur les <span style="font-size:28px;color: #FF5733;">50 dernières années</span> , soit à partir de 1975.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        """
+        <div style='text-align: justify;'>
+        Pour classer les meilleurs acteurs (les plus représentatifs), nous avons défini un nombre minimum de votes requis pour être inclus dans la liste, soit <span style="font-size:28px;color: #FF5733;">675 votes</span>  (75e percentile). 
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        """
+        <div style='text-align: justify;'>
+        Et concernant les moyennes des notes, nous sommes partis sur les <span style="font-size:28px;color: #FF5733;">notes supérieures à 6.8</span> , soit le 75e percentile également.
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
-    # --- FILTRE COMMUN DES DÉCENNIES ---
-    # Nous définissons la selectbox une seule fois ici
-    if "decade" in selected_dataframe.columns:
-        all_decades_available = sorted(
-            [int(d) for d in selected_dataframe["decade"].dropna().unique().tolist()]
-        )
-        decade_options = ["Toutes les décennies"] + all_decades_available
+    st.write("---")
 
-        selected_decade_filter = st.sidebar.selectbox(
-            "Filtrer les analyses par décennie :",  # Titre plus générique pour le filtre
-            options=decade_options,
-        )
-    else:
-        st.info(
-            "La colonne 'decade' est manquante, le filtre par décennie ne peut pas être appliqué."
-        )
-        selected_decade_filter = (
-            "Toutes les décennies"  # Valeur par défaut si la colonne manque
-        )
+    # Création de la partie du top 10 des meilleurs acteurs/actrices
 
-    # --- FILTRE: Type de contenu (Film/Série) pour les Acteurs ---
-    if "Type" in selected_dataframe.columns:
-        content_type_options = ["Tous les types"] + sorted(
-            selected_dataframe["Type"].dropna().unique().tolist()
-        )
-        selected_content_type_filter = st.sidebar.selectbox(
-            "Filtrer les analyses par type de contenu :",
-            options=content_type_options,
-        )
-    else:
-        st.info("La colonne 'Type' est manquante pour filtrer par type de contenu.")
-        selected_content_type_filter = "Tous les types"  # Valeur par défaut
+    ga.top_acteurs_actrices(selected_dataframe)
 
-    # --- Application des filtres au DataFrame pour les analyses d'acteurs ---
-    filtered_actors_df = selected_dataframe.copy()
+    # Création de la partie du top 10 des genres par acteurs et actrices
 
-    if selected_decade_filter != "Toutes les décennies":
-        filtered_actors_df = filtered_actors_df[
-            filtered_actors_df["decade"] == selected_decade_filter
-        ]
-
-    if selected_content_type_filter != "Tous les types":
-        filtered_actors_df = filtered_actors_df[
-            filtered_actors_df["Type"] == selected_content_type_filter
-        ]
-
-    # 1. Acteurs uniques qui ont joué dans des films (Adapté pour le nouveau filtre)
-    st.subheader("1. Nombre d'acteurs uniques")
-    if "Nom" in filtered_actors_df.columns:
-        unique_actors_count = filtered_actors_df["Nom"].nunique()
-        st.write(
-            f"Il y a <span style='color: #FF5733;'>**{unique_actors_count}**</span> acteurs "
-            f"pour la sélection actuelle.",
-            unsafe_allow_html=True,
-        )
-    else:
-        st.info("La colonne 'Nom' est manquante pour cette analyse.")
-
-    # 2. Âge moyen des acteurs (Adapté pour le nouveau filtre)
-    st.subheader("2. Évolution de l'âge moyen des acteurs par décennie")
-
-    if "decade" in filtered_actors_df.columns and (
-        "Age_actuel" in filtered_actors_df.columns
-        or "Age_deces" in filtered_actors_df.columns
-    ):
-        df_for_avg_age = filtered_actors_df.copy()
-        df_for_avg_age["Combined_Age"] = df_for_avg_age["Age_actuel"].fillna(
-            df_for_avg_age["Age_deces"]
-        )
-
-        df_avg_by_decade = df_for_avg_age.drop_duplicates(
-            subset=["ID_Acteur", "decade"]
-        )
-
-        if selected_decade_filter != "Toutes les décennies":
-            if df_avg_by_decade.empty:
-                st.info(
-                    f"Aucune donnée pour calculer l'âge moyen pour la décennie {selected_decade_filter}s "
-                    f"et le type {selected_content_type_filter}."
-                )
-            else:
-                avg_age = df_avg_by_decade["Combined_Age"].mean()
-                st.write(
-                    f"L'âge moyen des acteurs actifs dans la décennie {selected_decade_filter}s "
-                    f"et le type {selected_content_type_filter} est de **{avg_age:.2f} ans**."
-                )
-        else:
-            average_age_by_decade = (
-                df_avg_by_decade.groupby("decade")["Combined_Age"].mean().reset_index()
-            )
-            average_age_by_decade.rename(
-                columns={"Combined_Age": "Age_Moyen"}, inplace=True
-            )
-
-            if not average_age_by_decade.empty:
-                fig_line = px.line(
-                    average_age_by_decade,
-                    x="decade",
-                    y="Age_Moyen",
-                    title=f"Évolution de l'âge moyen des acteurs par décennie (Type: {selected_content_type_filter})",
-                    labels={"decade": "Décennie", "Age_Moyen": "Âge Moyen (ans)"},
-                    markers=True,
-                )
-                fig_line.update_layout(xaxis_tickangle=-45)
-                st.plotly_chart(fig_line, use_container_width=True)
-            else:
-                st.info(
-                    "Aucune donnée d'âge moyenne par décennie trouvée pour cette sélection."
-                )
-    else:
-        st.info(
-            "Les colonnes nécessaires ('decade', 'Age_actuel', 'Age_deces') sont manquantes pour cette analyse."
-        )
-
-    # 3. Top 10 des acteurs les plus présents au fil des décennies (Adapté pour le nouveau filtre)
-    st.subheader("3. Top 10 des acteurs les plus présents au fil des décennies")
-
-    if "Nom" in filtered_actors_df.columns and "decade" in filtered_actors_df.columns:
-        actor_presence_by_decade_raw = (
-            filtered_actors_df.groupby(["decade", "Nom"])
-            .size()
-            .reset_index(name="Nombre_de_titres")
-        )
-
-        if not all_decades_available:
-            st.info(
-                "Aucune donnée de présence d'acteur par décennie trouvée pour cette analyse."
-            )
-        else:
-            decades_to_process_actors = []
-            if selected_decade_filter == "Toutes les décennies":
-                decades_to_process_actors = all_decades_available
-                st.write(
-                    f"Affichage du Top 10 des acteurs pour chaque décennie (Type: {selected_content_type_filter}) :"
-                )
-            else:
-                decades_to_process_actors = [selected_decade_filter]
-                st.write(
-                    f"##### Décennie sélectionnée: **{selected_decade_filter}s** (Type: **{selected_content_type_filter}**)"
-                )
-
-            for decade in decades_to_process_actors:
-                if selected_decade_filter == "Toutes les décennies":
-                    st.write(f"##### Décennie: **{int(decade)}s**")
-
-                top_actors_decade = (
-                    actor_presence_by_decade_raw[
-                        actor_presence_by_decade_raw["decade"] == decade
-                    ]
-                    .sort_values(by="Nombre_de_titres", ascending=False)
-                    .head(10)
-                )
-
-                if not top_actors_decade.empty:
-                    st.dataframe(top_actors_decade.set_index("Nom"))
-                else:
-                    st.info(
-                        f"Aucun acteur trouvé pour la décennie {int(decade)}s et le type {selected_content_type_filter}."
-                    )
-    else:
-        st.info(
-            "Les colonnes 'Nom' ou 'decade' sont manquantes pour l'analyse de présence des acteurs."
-        )
-
-    # 4. Acteurs présents au cinéma et dans les séries (Cette analyse reste spécifique)
-    st.subheader("4. Acteurs présents au cinéma et dans les séries")
-
-    if "Nom" in selected_dataframe.columns and "Type" in selected_dataframe.columns:
-        movie_actors = set(
-            selected_dataframe[selected_dataframe["Type"] == "Film"]["Nom"].unique()
-        )
-        series_actors = set(
-            selected_dataframe[selected_dataframe["Type"] == "Series"]["Nom"].unique()
-        )
-        actors_in_both = list(movie_actors.intersection(series_actors))
-
-        if actors_in_both:
-            st.write(
-                f"Il y a <span style='color: #FF5733;'>**{len(actors_in_both)}**</span> acteurs qui ont joué à la fois dans des films et des séries :",
-                unsafe_allow_html=True,
-            )
-            st.write(", ".join(sorted(actors_in_both)))
-        else:
-            st.info(
-                "Aucun acteur trouvé ayant joué à la fois dans des films et des séries."
-            )
-    else:
-        st.info("Les colonnes 'Nom' ou 'Type' sont manquantes pour cette analyse.")
+    ga.top_acteurs_actrices_et_genres(selected_dataframe)
 
 
 elif theme == "Films":
     st.header("Analyses sur les Films")
-
-    # slider pour la durée minimale et maximale
-    selected_runtime_min, selected_runtime_max = st.sidebar.slider(
-        "Sélectionnez la plage de durée du film (en minutes) :",
-        min_value=int(selected_dataframe["runtime"].min()),
-        max_value=int(selected_dataframe["runtime"].max()),
-        value=(
-            int(selected_dataframe["runtime"].min()),
-            int(selected_dataframe["runtime"].max()),
-        ),  # Valeurs initiales min et max
-    )
-
-    # Nettoyage de chaque genre : suppression des espaces et uniformisation de la casse
-    selected_dataframe["genres"] = selected_dataframe["genres"].apply(
-        lambda x: ast.literal_eval(x) if isinstance(x, str) else x
-    )
-
-    # Nettoyage des genres (suppression des espaces et uniformisation de la casse)
-    # C'est important pour que 'Action ' et 'Action' ne soient pas considérés comme uniques.
-    selected_dataframe["genres"] = selected_dataframe["genres"].apply(
-        lambda genre_list: (
-            [g.strip().title() for g in genre_list]
-            if isinstance(genre_list, list)
-            else []
-        )
-    )
-
-    # 1. Utiliser `explode()` pour aplatir la liste de listes en une seule Series.
-    # 2. Utiliser `unique()` pour obtenir les valeurs uniques.
-    # 3. Convertir le résultat (un array NumPy) en une liste Python.
-    # 4. Trier la liste pour avoir un ordre prévisible.
-    genres_uniques_liste = sorted(
-        selected_dataframe["genres"].explode().dropna().unique().tolist()
-    )
-
-    # Menu déroulant multiselect
-    selected_genres = st.sidebar.multiselect(
-        "Sélectionnez un ou plusieurs genres :", genres_uniques_liste
-    )
-
-    # Application de filtres:
-    filtered_df = selected_dataframe.copy()
-
-    # Filtrer le DataFrame selon la sélection de temps (plage min et max)
-    filtered_df = filtered_df[
-        (filtered_df["runtime"] >= selected_runtime_min)
-        & (filtered_df["runtime"] <= selected_runtime_max)
-    ]
-
-    # Filtrer le DataFrame selon la sélection de genre
-    # Cette partie doit s'appliquer au filtered_df qui a déjà le filtre de durée
-    if selected_genres:
-        filtered_df = filtered_df[  # IMPORTANT : Filtrer sur filtered_df, pas sur df
-            filtered_df["genres"].apply(
-                lambda genres: any(g in genres for g in selected_genres)
-            )
-        ]
-        st.write(
-            f"Films correspondant aux genres : {selected_genres} et durée entre {selected_runtime_min} et {selected_runtime_max} minutes"
-        )
-    else:
-        st.write(
-            f"Aucun genre sélectionné. Affichage de tous les films avec une durée entre {selected_runtime_min} et {selected_runtime_max} minutes."
-        )
-
-    # Afficher le DataFrame filtré après toutes les applications de filtres
-    st.dataframe(filtered_df)
-
-    # Pour illustrer, reprenons le filtrage de votre code précédent pour le thème Film
-    # 1. Slider pour la durée minimale et maximale (déjà dans votre code précédent)
-    #    Il faut s'assurer que ces variables (selected_runtime_min, selected_runtime_max, selected_genres)
-    #    sont définies ou déplacées dans ce bloc if.
-
-    # Pour que votre code de filtrage des films fonctionne ici:
-    # 1. Déplacez les lignes de création des sliders et multiselect dans ce bloc `if theme == "Films":`
-    # 2. Réinitialisez ou adaptez `genres_uniques_liste` en fonction de `selected_dataframe` (qui est maintenant le df des films)
-
-    # Exemple simplifié pour ne pas dupliquer tout le code de filtrage des films ici,
-    # mais pour montrer comment l'appeler si vous l'avez refactorisé dans une fonction.
-    # Sinon, vous devrez coller le code du slider et du multiselect ici.
-
-    # # Nettoyage de chaque genre pour le dataframe 'Films'
-    # selected_dataframe["genres"] = selected_dataframe["genres"].apply(
-    #     lambda x: ast.literal_eval(x) if isinstance(x, str) else x
-    # )
-    # # Nettoyage des genres (suppression des espaces et uniformisation de la casse)
-    # selected_dataframe["genres"] = selected_dataframe["genres"].apply(
-    #     lambda genre_list: (
-    #         [g.strip().title() for g in genre_list] if isinstance(genre_list, list) else []
-    #     )
-    # )
-    #
-    # genres_uniques_liste_films = sorted(selected_dataframe["genres"].explode().dropna().unique().tolist())
-    #
-    # selected_genres_films = st.sidebar.multiselect(
-    #     "Sélectionnez un ou plusieurs genres de films :", genres_uniques_liste_films
-    # )
-    #
-    # # Ajoutez ici les filtres de durée et de genre pour les films
-    # #...
