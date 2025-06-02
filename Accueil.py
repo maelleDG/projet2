@@ -1,10 +1,7 @@
 from streamlit_option_menu import option_menu
 import streamlit as st
 
-st.set_page_config(
-    page_title="Projet2",
-    page_icon="🎥",
-)
+st.set_page_config(page_title="Projet2", page_icon="🎥", layout="wide")
 
 st.title("🎥 Bienvenue à notre Projet 2")
 st.write("## Par Antoine, Evi, Marie et Maëlle")
@@ -27,10 +24,9 @@ st.markdown(
         ---
         ### 📊 Analyse filmographique
         Ensuite, nous avons exploré la base de données pour :
-        - Identifier les acteurs les plus présents au fil des décennies
+        - Identifier le top 10 des acteurs/actrices les plus représentatifs
+        - Identifier les genres dominants pour les acteurs/actrices
         - Étudier l’évolution de la durée des films
-        - Comparer les acteurs présents au cinéma et dans les séries
-        - Calculer l’âge moyen des acteurs
         - Repérer les films les mieux notés et ce qu’ils ont en commun
 
         ---

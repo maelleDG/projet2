@@ -5,7 +5,9 @@ import numpy as np
 
 con = db.connect()
 
-# --- Analyse filmographique Thème acteur sur les 50 dernières années---
+# --- Analyse filmographique Thème acteur ---
+
+# Top 10 des acteurs et actrices sur les 50 dernières années sur le films dont la note moyenne est supérieure à 6.8 et le nombre de votant supérieur à 675.---
 
 # Création de la table complète avant filtre
 query = """select T1.nconst, T1.primaryName, T1.birthYear, T1.deathYear, T1.knownForTitles,
@@ -45,10 +47,6 @@ borne_sup_iqr = Q3 + 1.5 * IQR
 df_a2 = df_a[
     (df_a["runtimeMinutes"] >= borne_inf) & (df_a["runtimeMinutes"] <= borne_sup_iqr)
 ]
-
-print(f"Nombre de lignes avant suppression des outliers (IQR): {len(df_a)}")
-print(f"Nombre de lignes après suppression des outliers (IQR): {len(df_a2)}")
-
 df_a = df_a2  # Mise à jour du DF
 
 # Pour l'analyse on garde les 50 dernières années
@@ -56,10 +54,25 @@ df_a50 = df_a[df_a["startYear"] >= 1975]
 
 # On conserve les valeurs actrices/acteurs/directeurs de la colonne category
 categories_to_keep = ["actress", "actor", "director"]
-
-# Filtrer le DataFrame
 df_a50 = df_a50[df_a50["category"].isin(categories_to_keep)]
 
+# Pour l'analyse on garde les films dont l'averagerating > 6.8
+df_a50_ar6 = df_a50[df_a50["averageRating"] > 6.8]
+
+# Pour l'analyse on garde les films dont le numVote > 675
+df_a50_ar6_nv675 = df_a50[df_a50["numVotes"] > 675]
+
+# Création du fichier
+try:
+    df_a50_ar6_nv675.to_parquet(
+        "Top10acteurs", index=False
+    )  # index=False est souvent une bonne pratique pour Parquet
+    print("\nDataFrame 'df_a50_ar6_nv675' sauvegardé avec succès au format Parquet.")
+except Exception as e:
+    print(f"\nErreur lors de la sauvegarde au format Parquet : {e}")
+
+
+# ---
 
 # Création de data1_filtered
 
