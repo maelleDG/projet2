@@ -6,6 +6,7 @@ import plotly.express as px
 import matplotlib.pyplot as plt
 import seaborn as sns
 import modules.graphique_acteurs as ga
+import modules.graphique_films as gf
 
 # Barre latérale
 with st.sidebar:
@@ -24,7 +25,8 @@ with col1:
 # Contenu de la deuxième colonne :
 with col2:
     st.markdown(
-        "<h1 style='text-align: center; color: blue; font-size: 55px;'>Analyse filmographique</h1>",
+        "<h1 style='text-align: center; font-size: 60px;'>Analyse filmographique"
+        "\n IMDB</h1>",
         unsafe_allow_html=True,
     )
 
@@ -33,7 +35,7 @@ with col2:
 if "datasets_dispo" not in st.session_state:
     st.session_state["datasets_dispo"] = {
         "Acteurs": pd.read_parquet("Top10acteurs"),
-        "Films": pd.read_parquet("film_fr_tmdb.parquet"),
+        "Films": pd.read_parquet("Duree_film"),
     }
 
 # Création d'une liste de dataset
@@ -49,38 +51,22 @@ st.write(
     unsafe_allow_html=True,
 )
 
+# Explication de l'analyse
+st.markdown(
+    """
+    <div style='text-align: justify;'>
+    Pour identifier les acteurs/actrices et les réalisateurs les plus représentatifs, notre analyse se concentre sur les films des <span style="font-size:30px;color: #FF5733;">50 dernières années (à partir de 1975)</span>, dont la durée est comprise entre <span style="font-size:30px;color: #FF5733;">70 et 200 minutes</span>,
+    en considérant uniquement ceux qui ont reçu un minimum de <span style="font-size:30px;color: #FF5733;">80 000 votes</span> et dont la note moyenne est <span style="font-size:30px;color: #FF5733;">supérieure à 6.8 </span>(ce qui correspond au troisième quartile des notes).
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+st.write("---")
+
 # --- Section d'analyse et d'affichage ---
 
 if theme == "Acteurs":
     st.markdown("## Analyses sur les Acteurs")
-
-    # Explication de l'analyse
-    st.markdown(
-        """
-        <div style='text-align: justify;'>
-        Pour l'analyse des acteurs, nous avons décidé de partir sur les <span style="font-size:28px;color: #FF5733;">50 dernières années</span> , soit à partir de 1975.
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        """
-        <div style='text-align: justify;'>
-        Pour classer les meilleurs acteurs (les plus représentatifs), nous avons défini un nombre minimum de votes requis pour être inclus dans la liste, soit <span style="font-size:28px;color: #FF5733;">675 votes</span>  (75e percentile). 
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        """
-        <div style='text-align: justify;'>
-        Et concernant les moyennes des notes, nous sommes partis sur les <span style="font-size:28px;color: #FF5733;">notes supérieures à 6.8</span> , soit le 75e percentile également.
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.write("---")
 
     # Création de la partie du top 10 des meilleurs acteurs/actrices
 
@@ -90,6 +76,18 @@ if theme == "Acteurs":
 
     ga.top_acteurs_actrices_et_genres(selected_dataframe)
 
+    # Création de la partie du top 10 des réalisateurs
+
+    ga.top_realisateurs(selected_dataframe)
+
 
 elif theme == "Films":
-    st.header("Analyses sur les Films")
+    st.markdown("## Analyses sur les Films")
+
+    # Création de la partie du top 10 des genres par acteurs et actrices
+
+    gf.graphique_film_metric(selected_dataframe)
+
+    # Création de la partie du top 10 des meilleurs films
+
+    gf.top10_films(selected_dataframe)

@@ -1,107 +1,191 @@
 import streamlit as st
 import pandas as pd
-import ast
+import joblib
+import streamlit.components.v1 as components
 
-# Chargement du dataset
-# pour éviter de recharger si déjà charger
-if "df" in st.session_state:
-    df = st.session_state["df"]
+# --- Chargement des données ---
+if "reco" not in st.session_state:
+    df = pd.read_parquet("reco")
+    st.session_state["reco"] = df
 else:
-    df = pd.read_parquet("film_fr_tmdb.parquet")
-st.session_state["df"] = df
+    df = st.session_state["reco"]
 
-# slider pour la durée minimale et maximale
-selected_runtime_min, selected_runtime_max = st.sidebar.slider(
-    "Sélectionnez la plage de durée du film (en minutes) :",
-    min_value=int(df["runtime"].min()),
-    max_value=int(df["runtime"].max()),
-    value=(
-        int(df["runtime"].min()),
-        int(df["runtime"].max()),
-    ),  # Valeurs initiales min et max
-)
+# Chargement de la cartographie des voisins
+carto = joblib.load("carto.pkl")
 
-# Nettoyage de chaque genre : suppression des espaces et uniformisation de la casse
-df["genres"] = df["genres"].apply(
-    lambda x: ast.literal_eval(x) if isinstance(x, str) else x
-)
+# Initialisation favoris
+if "favoris" not in st.session_state or not isinstance(
+    st.session_state["favoris"], set
+):
+    st.session_state["favoris"] = set()
 
-# Nettoyage des genres (suppression des espaces et uniformisation de la casse)
-# C'est important pour que 'Action ' et 'Action' ne soient pas considérés comme uniques.
-df["genres"] = df["genres"].apply(
-    lambda genre_list: (
-        [g.strip().title() for g in genre_list] if isinstance(genre_list, list) else []
+# --- Préparation des genres ---
+df["genres"] = df["genres"].fillna("[]")
+df["genres_list"] = df["genres"].apply(lambda x: eval(x) if isinstance(x, str) else [])
+all_genres = sorted({g for sublist in df["genres_list"] for g in sublist})
+
+st.title("🎬 Ciné-Affinités : Votre Sélection Intelligente")
+st.write("---")
+
+# --- Choix du film principal ---
+film_titles = df["title"].dropna().unique()
+selected_title = st.selectbox("📽️ Choisissez un film:", sorted(film_titles))
+
+# Réinitialisation si le film change
+if "last_selected_title" not in st.session_state:
+    st.session_state["last_selected_title"] = selected_title
+elif st.session_state["last_selected_title"] != selected_title:
+    st.session_state["selected_film_id"] = None
+    st.session_state["last_selected_title"] = selected_title
+
+n = df[df["title"] == selected_title].index[0]
+
+# --- Sidebar ---
+with st.sidebar:
+    st.title("Filtres")
+    if st.button("♻️ Réinitialiser les filtres"):
+        st.session_state["selected_genres"] = []
+        st.session_state["year_range"] = (1960, 2025)
+        st.session_state["min_vote"] = 5.0
+
+    selected_genres = st.multiselect(
+        "Genres", all_genres, default=st.session_state.get("selected_genres", [])
     )
-)
+    min_year, max_year = st.slider(
+        "Période de sortie",
+        1960,
+        2025,
+        st.session_state.get("year_range", (1960, 2025)),
+    )
+    min_vote = st.slider(
+        "Note moyenne minimale",
+        0.0,
+        10.0,
+        st.session_state.get("min_vote", 5.0),
+        step=0.1,
+    )
 
-# 1. Utiliser `explode()` pour aplatir la liste de listes en une seule Series.
-# 2. Utiliser `unique()` pour obtenir les valeurs uniques.
-# 3. Convertir le résultat (un array NumPy) en une liste Python.
-# 4. Trier la liste pour avoir un ordre prévisible.
-genres_uniques_liste = sorted(df["genres"].explode().dropna().unique().tolist())
+    st.session_state["selected_genres"] = selected_genres
+    st.session_state["year_range"] = (min_year, max_year)
+    st.session_state["min_vote"] = min_vote
 
-# Menu déroulant multiselect
-selected_genres = st.sidebar.multiselect(
-    "Sélectionnez un ou plusieurs genres :", genres_uniques_liste
-)
+    # --- Affichage des favoris ---
+    st.markdown("### 🎯 Mes Favoris")
+    if st.session_state["favoris"]:
+        for fav_id in st.session_state["favoris"]:
+            try:
+                fav_film = df.loc[fav_id]
+                st.markdown(f"**🎞️ {fav_film['title']}**")
+                if pd.notna(fav_film["poster_path"]):
+                    st.image(
+                        "https://image.tmdb.org/t/p/w92" + fav_film["poster_path"],
+                        width=80,
+                    )
+            except:
+                continue
+    else:
+        st.write("Aucun favori pour le moment.")
 
-# Application de filtres:
-filtered_df = df.copy()
+# --- Récupération des voisins ---
+voisins_indices = carto[n]
+voisins_indices = [i for i in voisins_indices if i != n]
 
-# Filtrer le DataFrame selon la sélection de temps (plage min et max)
-filtered_df = filtered_df[
-    (filtered_df["runtime"] >= selected_runtime_min)
-    & (filtered_df["runtime"] <= selected_runtime_max)
-]
+# --- Filtrage des voisins ---
+filtered_indices = []
+for idx in voisins_indices:
+    f = df.loc[idx]
+    genres = eval(f["genres"]) if isinstance(f["genres"], str) else []
+    year = int(str(f["release_date"])[:4]) if pd.notna(f["release_date"]) else 0
+    vote = f["vote_average"] if pd.notna(f["vote_average"]) else 0
 
-# Filtrer le DataFrame selon la sélection de genre
-# Cette partie doit s'appliquer au filtered_df qui a déjà le filtre de durée
-if selected_genres:
-    filtered_df = filtered_df[  # IMPORTANT : Filtrer sur filtered_df, pas sur df
-        filtered_df["genres"].apply(
-            lambda genres: any(g in genres for g in selected_genres)
+    if selected_genres and not any(g in genres for g in selected_genres):
+        continue
+    if not (min_year <= year <= max_year):
+        continue
+    if vote < min_vote:
+        continue
+    filtered_indices.append(idx)
+
+# --- Affichage du film de départ ---
+st.write("### 🎬 Film de départ :")
+film = df.loc[n]
+col1, col2 = st.columns([1, 3])
+with col1:
+    if pd.notna(film["poster_path"]):
+        st.image(
+            "https://image.tmdb.org/t/p/w200" + film["poster_path"],
+            caption=film["title"],
+            width=150,
         )
-    ]
-    st.write(
-        f"Films correspondant aux genres : {selected_genres} et durée entre {selected_runtime_min} et {selected_runtime_max} minutes"
-    )
+with col2:
+    st.write(f"**Titre :** {film['title']}")
+    st.write(f"**Date de sortie :** {film['release_date']}")
+    st.write(f"**Langue :** {film['original_language']}")
+    st.write(f"**Genres :** {film['genres']}")
+    st.write(f"**Overview :** {film.get('overview', 'Aucun résumé disponible')}")
+
+    # Bouton favoris
+    if n not in st.session_state["favoris"]:
+        if st.button("⭐ Ajouter aux favoris"):
+            st.session_state["favoris"].add(n)
+            st.success("Ajouté aux favoris !")
+            st.rerun()
+    else:
+        if st.button("❌ Retirer des favoris"):
+            st.session_state["favoris"].remove(n)
+            st.info("Retiré des favoris.")
+            st.rerun()
+
+# --- Carrousel Swiper des films similaires ---
+st.markdown("### 🎞️ Films similaires correspondants :")
+
+if not filtered_indices:
+    st.warning("Aucun film similaire ne correspond à vos critères.")
 else:
-    st.write(
-        f"Aucun genre sélectionné. Affichage de tous les films avec une durée entre {selected_runtime_min} et {selected_runtime_max} minutes."
-    )
+    carousel_html = """
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@10/swiper-bundle.min.css"/>
+    <style>
+    .swiper-slide img {
+        border-radius: 12px;
+        max-height: 280px;
+        cursor: pointer;
+    }
+    .swiper {
+        width: 100%;
+        padding-top: 10px;
+        padding-bottom: 30px;
+    }
+    </style>
+    <div class="swiper">
+      <div class="swiper-wrapper">
+    """
 
-# Afficher le DataFrame filtré après toutes les applications de filtres
-st.dataframe(filtered_df)
+    for idx in filtered_indices:
+        film = df.loc[idx]
+        if pd.notna(film["poster_path"]):
+            img_url = "https://image.tmdb.org/t/p/w300" + film["poster_path"]
+            title = film["title"].replace('"', "'")
+            tmdb_id = film["id"]
+            tmdb_url = f"https://www.themoviedb.org/movie/{tmdb_id}"
+            carousel_html += f"""
+            <div class="swiper-slide">
+            <a href="{tmdb_url}" target="_blank" rel="noopener noreferrer">
+                <img src="{img_url}" title="{title}" />
+            </a>
+            </div>
+            """
 
-# Pour illustrer, reprenons le filtrage de votre code précédent pour le thème Film
-# 1. Slider pour la durée minimale et maximale (déjà dans votre code précédent)
-#    Il faut s'assurer que ces variables (selected_runtime_min, selected_runtime_max, selected_genres)
-#    sont définies ou déplacées dans ce bloc if.
+    carousel_html += """
+      </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/swiper@10/swiper-bundle.min.js"></script>
+    <script>
+    const swiper = new Swiper('.swiper', {
+      slidesPerView: 5,
+      spaceBetween: 10,
+      freeMode: true,
+    });
+    </script>
+    """
 
-# Pour que votre code de filtrage des films fonctionne ici:
-# 1. Déplacez les lignes de création des sliders et multiselect dans ce bloc `if theme == "Films":`
-# 2. Réinitialisez ou adaptez `genres_uniques_liste` en fonction de `selected_dataframe` (qui est maintenant le df des films)
-
-# Exemple simplifié pour ne pas dupliquer tout le code de filtrage des films ici,
-# mais pour montrer comment l'appeler si vous l'avez refactorisé dans une fonction.
-# Sinon, vous devrez coller le code du slider et du multiselect ici.
-
-# # Nettoyage de chaque genre pour le dataframe 'Films'
-# selected_dataframe["genres"] = selected_dataframe["genres"].apply(
-#     lambda x: ast.literal_eval(x) if isinstance(x, str) else x
-# )
-# # Nettoyage des genres (suppression des espaces et uniformisation de la casse)
-# selected_dataframe["genres"] = selected_dataframe["genres"].apply(
-#     lambda genre_list: (
-#         [g.strip().title() for g in genre_list] if isinstance(genre_list, list) else []
-#     )
-# )
-#
-# genres_uniques_liste_films = sorted(selected_dataframe["genres"].explode().dropna().unique().tolist())
-#
-# selected_genres_films = st.sidebar.multiselect(
-#     "Sélectionnez un ou plusieurs genres de films :", genres_uniques_liste_films
-# )
-#
-# # Ajoutez ici les filtres de durée et de genre pour les films
-# #...
+    components.html(carousel_html, height=330)
