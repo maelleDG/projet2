@@ -38,17 +38,14 @@ def graphique_barres(df, colonne_categorie, couleur=None):
     )
     df_long.rename(columns={"index": colonne_categorie}, inplace=True)
 
-    # Sélecteur
-    publics = df_long["Public"].unique()
-    selected_publics = st.sidebar.multiselect(
-        "Choisissez le(s) public(s) à afficher :",
-        options=publics,
-        default=publics,
-        key=f"multiselect_{colonne_categorie}",  # <- clé unique ici
-    )
-
-    # Filtrer
-    df_filtered = df_long[df_long["Public"].isin(selected_publics)]
+    # *** UTILISATION DU FILTRE GLOBAL DEPUIS st.session_state ***
+    # Vérifier si selected_publics existe dans st.session_state et n'est pas vide
+    if "selected_publics" in st.session_state and st.session_state.selected_publics:
+        selected_publics = st.session_state.selected_publics
+        df_filtered = df_long[df_long["Public"].isin(selected_publics)]
+    else:
+        # Si aucune sélection ou si la sélection est vide, afficher toutes les données
+        df_filtered = df_long
 
     # Couleurs par défaut
     if not couleur:
@@ -120,5 +117,4 @@ def graphique_esf(data):
     )
 
     # Affichage
-    fig.show()
     return st.plotly_chart(fig, use_container_width=True)
