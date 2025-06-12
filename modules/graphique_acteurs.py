@@ -29,7 +29,7 @@ def top_acteurs_actrices(selected_dataframe):
         top_10_actresses = film_count_by_actress.head(10).sort_values(ascending=False)
 
         # Création du graphique en barres opposées
-        fig, ax = plt.subplots(figsize=(10, 5))
+        fig, ax = plt.subplots(figsize=(8, 4))
 
         # Inverser l'ordre des tops 10 pour que le plus grand nombre soit en haut du graphique
         top_10_actors_rev = top_10_actors.iloc[::-1]
@@ -46,7 +46,13 @@ def top_acteurs_actrices(selected_dataframe):
             ax.barh(i, -count, color=colors_actors[i], height=0.7)
             # Afficher le nom de l'acteur
             ax.text(
-                -count - 1, i, name, va="center", ha="right", fontsize=12, color="white"
+                -count - 1,
+                i,
+                name,
+                va="center",
+                ha="right",
+                fontsize=6,
+                color="dimgray",
             )
             # Afficher le nombre de films
             ax.text(
@@ -55,7 +61,7 @@ def top_acteurs_actrices(selected_dataframe):
                 str(int(count)),
                 va="center",
                 ha="center",
-                fontsize=10,
+                fontsize=8,
                 color="white",
             )
 
@@ -64,7 +70,7 @@ def top_acteurs_actrices(selected_dataframe):
             ax.barh(i, count, color=colors_actresses[i], height=0.7)
             # Afficher le nom de l'actrice
             ax.text(
-                count + 1, i, name, va="center", ha="left", fontsize=12, color="white"
+                count + 1, i, name, va="center", ha="left", fontsize=6, color="dimgray"
             )
             # Afficher le nombre de films
             ax.text(
@@ -73,15 +79,15 @@ def top_acteurs_actrices(selected_dataframe):
                 str(int(count)),
                 va="center",
                 ha="center",
-                fontsize=10,
+                fontsize=8,
                 color="white",
             )
 
         # Personnalisation des titres et axes
         ax.set_title(
             "Top 10 des acteurs et actrices",
-            fontsize=20,
-            color="white",
+            fontsize=15,
+            color="dimgray",
             pad=20,
         )
         ax.set_ylabel("")  # Masquer le label Y
@@ -94,8 +100,8 @@ def top_acteurs_actrices(selected_dataframe):
         # Formater les étiquettes de l'axe X pour afficher les valeurs absolues
         formatter = plt.FuncFormatter(lambda x, p: f"{abs(int(x))}")
         ax.xaxis.set_major_formatter(formatter)
-        ax.tick_params(axis="x", colors="white", labelsize=10)
-        ax.set_xlabel("Nombre de films", fontsize=14, color="white", labelpad=6)
+        ax.tick_params(axis="x", colors="dimgray", labelsize=6)
+        ax.set_xlabel("Nombre de films", fontsize=8, color="dimgray", labelpad=6)
 
         # Ajouter une ligne verticale au centre
         ax.axvline(0, color="grey", linewidth=0.8, alpha=0.7)
@@ -103,28 +109,30 @@ def top_acteurs_actrices(selected_dataframe):
         # Ajouter des titres pour chaque côté
         ax.text(
             -max_val / 2,
-            len(top_10_actors_rev) - 0.5,  # Adjusted Y position
+            len(top_10_actors_rev) - 0.1,  # Adjusted Y position
             "Acteurs",
             ha="center",
             va="bottom",
-            fontsize=14,
-            color="white",
+            fontsize=10,
+            color="dimgray",
         )
         ax.text(
             max_val / 2,
-            len(top_10_actresses_rev) - 0.5,  # Adjusted Y position
+            len(top_10_actresses_rev) - 0.1,  # Adjusted Y position
             "Actrices",
             ha="center",
             va="bottom",
-            fontsize=14,
-            color="white",
+            fontsize=10,
+            color="dimgray",
         )
 
         # Set background color for the plot area
-        ax.set_facecolor("#262626")  # Dark grey for plot background
+        ax.set_facecolor("none")
 
         # Set figure background color
-        fig.patch.set_facecolor("#0e1117")  # Streamlit's dark theme background color
+        fig.patch.set_facecolor("none")
+        fig.patch.set_edgecolor("none")
+        fig.patch.set_linewidth(0)
 
         plt.tight_layout()
         st.pyplot(fig)
@@ -232,3 +240,60 @@ def top_acteurs_actrices_et_genres(selected_dataframe):
             st.plotly_chart(fig_actresses, use_container_width=True)
         else:
             st.write("Pas assez de données pour générer le treemap des actrices.")
+
+
+def top_realisateurs(df):
+    with st.expander("Voir le Top 10 des réalisateurs :"):
+        # Assurez-vous que la colonne "category" existe et que "director" est une valeur valide.
+        df_director = df[df["category"] == "director"]
+
+        # Obtenir le top 10 des réalisateurs
+        # top_directors_by_films est une Série. Pour Plotly Express, il est préférable de la convertir en DataFrame.
+        top_directors_series = df_director["primaryName"].value_counts().head(10)
+
+        if top_directors_series.empty:
+            st.warning("Aucun réalisateur trouvé après le filtrage ou dans le top 10.")
+            return
+
+        # Convertir la Série en DataFrame pour Plotly Express
+        df_top_directors = top_directors_series.reset_index()
+        df_top_directors.columns = ["Nom du réalisateur", "Nombre de films réalisés"]
+
+        # Créer le graphique avec Plotly Express
+        fig = px.bar(
+            df_top_directors,
+            x="Nom du réalisateur",
+            y="Nombre de films réalisés",
+            title="Top 10 des réalisateurs par nombre de films (avec notes > 6.8 et > 80k votes)",
+            labels={
+                "Nom du réalisateur": "Réalisateur",
+                "Nombre de films réalisés": "Nombre de films",
+            },
+            color_discrete_sequence=["blue"],  # Définit la couleur des barres
+        )
+
+        # Personnalisations supplémentaires (équivalent de plt.xticks, ax.grid, etc.)
+        fig.update_layout(
+            xaxis_title_text="Nom du réalisateur",
+            yaxis_title_text="Nombre de films réalisés",
+            xaxis_tickangle=-45,  # Fait pivoter les étiquettes de l'axe X
+            title_font_size=16,
+            height=500,  # Hauteur du graphique
+        )
+        # Ajoute une grille sur l'axe Y
+        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor="LightGrey")
+
+        # Affiche le graphique dans Streamlit
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown(
+            f"""
+                    Le graphique révèle que <span style="font-size:30px;color: #FF5733;">**{top_directors_series.index[0]}**</span> domine clairement le classement des réalisateurs avec la plus grande quantité de films 
+                    ayant obtenu une note moyenne supérieure à 6.8 et plus de 80 000 votes, affichant environ 30 réalisations dans ces critères. 
+                    Il est suivi par <span style="font-size:30px;color: #FF5733;">**{top_directors_series.index[1]}**</span> 
+                    et un groupe de réalisateurs comme <span style="font-size:30px;color: #FF5733;">**{top_directors_series.index[2]}**</span>, 
+                    <span style="font-size:30px;color: #FF5733;">**{top_directors_series.index[3]}**</span>, et <span style="font-size:30px;color: #FF5733;">**{top_directors_series.index[4]}**</span> qui ont un nombre significatif de films qualifiés, 
+                    démontrant ainsi la persistance et la reconnaissance critique de ces cinéastes au sein de la base de données filtrée.
+""",
+            unsafe_allow_html=True,
+        )

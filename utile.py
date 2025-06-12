@@ -2,6 +2,7 @@ import pandas as pd
 import duckdb as db
 from datetime import datetime
 import numpy as np
+import ast
 
 con = db.connect()
 
@@ -38,19 +39,12 @@ df_a["runtimeMinutes"] = pd.to_numeric(df_a["runtimeMinutes"], errors="coerce").
 )
 
 # Nettoyage de la colonne runtimeMinute
-Q1 = df_a["runtimeMinutes"].quantile(0.25)
-Q3 = df_a["runtimeMinutes"].quantile(0.75)
-IQR = Q3 - Q1
-borne_inf = Q1 - 1.5 * IQR
-borne_sup_iqr = Q3 + 1.5 * IQR
-
-df_a2 = df_a[
-    (df_a["runtimeMinutes"] >= borne_inf) & (df_a["runtimeMinutes"] <= borne_sup_iqr)
-]
+df_a2 = df_a[(df_a["runtimeMinutes"] >= 70) & (df_a["runtimeMinutes"] <= 200)]
 df_a = df_a2  # Mise à jour du DF
 
 # Pour l'analyse on garde les 50 dernières années
 df_a50 = df_a[df_a["startYear"] >= 1975]
+
 
 # On conserve les valeurs actrices/acteurs/directeurs de la colonne category
 categories_to_keep = ["actress", "actor", "director"]
@@ -59,8 +53,8 @@ df_a50 = df_a50[df_a50["category"].isin(categories_to_keep)]
 # Pour l'analyse on garde les films dont l'averagerating > 6.8
 df_a50_ar6 = df_a50[df_a50["averageRating"] > 6.8]
 
-# Pour l'analyse on garde les films dont le numVote > 675
-df_a50_ar6_nv675 = df_a50[df_a50["numVotes"] > 675]
+# Pour l'analyse on garde les films dont le numVote > 80000
+df_a50_ar6_nv675 = df_a50[df_a50["numVotes"] > 80000]
 
 # Création du fichier
 try:
@@ -71,278 +65,190 @@ try:
 except Exception as e:
     print(f"\nErreur lors de la sauvegarde au format Parquet : {e}")
 
-
 # ---
 
-# Création de data1_filtered
+# --- Analyse filmographique Thème film ---
+
+# Création du fichier
+try:
+    df_a50.to_parquet(
+        "Duree_film", index=False
+    )  # index=False est souvent une bonne pratique pour Parquet
+    print("\nDataFrame 'Duree_film' sauvegardé avec succès au format Parquet.")
+except Exception as e:
+    print(f"\nErreur lors de la sauvegarde au format Parquet : {e}")
+
+
+# --- Recommandation ---
+
+# Création du fichier reco_full
 
 query = """
-select * from name.basics.tsv
-"""
-data1 = con.execute(query).df()
-# --- Section de nettoyage et préparation initiale de data1 ---
-# Remplacer '\\N' par np.nan dans tout le DataFrame pour une gestion standard des valeurs manquantes
-data1.replace({"\\N": np.nan}, inplace=True)
-# Convertir 'birthYear' et 'deathYear' en numériques et en type nullable integer (Int64)
-# Les erreurs seront converties en NaN (qui est géré par Int64)
-data1["birthYear"] = pd.to_numeric(data1["birthYear"], errors="coerce").astype("Int64")
-data1["deathYear"] = pd.to_numeric(data1["deathYear"], errors="coerce").astype("Int64")
-current_year = datetime.now().year
-# --- Calcul des âges ---
-# Initialiser les colonnes d'âge avec pd.NA pour Int64
-data1["age_deces"] = pd.NA
-data1["age_actuel"] = pd.NA
-# Calcul de l'âge de décès : pour les personnes ayant une année de décès renseignée (non-NaN)
-# Utiliser .loc avec un masque pour éviter les SettingWithCopyWarning
-mask_deces = data1["deathYear"].notna()
-data1.loc[mask_deces, "age_deces"] = (
-    data1.loc[mask_deces, "deathYear"] - data1.loc[mask_deces, "birthYear"]
-)
-# Calcul de l'âge actuel : pour les personnes vivantes (année de décès est NaN)
-# Utiliser .loc avec un masque pour éviter les SettingWithCopyWarning
-mask_vivant = data1["deathYear"].isna()
-data1.loc[mask_vivant, "age_actuel"] = (
-    current_year - data1.loc[mask_vivant, "birthYear"]
-)
-# Assurez-vous que les colonnes d'âge sont du type Int64 (nullable integer)
-data1["age_deces"] = data1["age_deces"].astype("Int64")
-data1["age_actuel"] = data1["age_actuel"].astype("Int64")
-
-
-# Suppression des outliers
-def limite_iqr(series):
-    Q1 = series.quantile(0.25)
-    Q3 = series.quantile(0.75)
-    IQR = Q3 - Q1
-    borne_inf = Q1 - 1.5 * IQR
-    borne_sup_iqr = Q3 + 1.5 * IQR
-    return borne_inf, borne_sup_iqr
-
-
-# Obtention des limites pour les âges de décès
-ages_deces_valide = data1["age_deces"].dropna()
-if not ages_deces_valide.empty:
-    borne_inf_deces, borne_sup_iqr_deces = limite_iqr(ages_deces_valide)
-else:
-    borne_inf_deces, borne_sup_iqr_deces = -np.inf, np.inf
-# Obtention des limites pour les âges actuels
-ages_actuels_valide = data1["age_actuel"].dropna()
-if not ages_actuels_valide.empty:
-    borne_inf_actuel, borne_sup_iqr_actuel = limite_iqr(ages_actuels_valide)
-else:
-    borne_inf_actuel, borne_sup_iqr_actuel = -np.inf, np.inf
-# Création d'un masque pour les lignes qui NE SONT PAS des outliers
-# Une ligne est conservée si :
-# 1. Elle est décédée ET son âge de décès est dans les limites IQR
-# OU
-# 2. Elle est en vie ET son âge actuel est dans les limites IQR
-non_outlier_mask = (
-    data1["age_deces"].notna()
-    & (data1["age_deces"] >= borne_inf_deces)
-    & (data1["age_deces"] <= borne_sup_iqr_deces)
-) | (
-    data1["age_actuel"].notna()
-    & (data1["age_actuel"] >= borne_inf_actuel)
-    & (data1["age_actuel"] <= borne_sup_iqr_actuel)
-)
-# Filtrer data1 pour supprimer les outliers ET inclure uniquement les acteurs/actrices
-# Cette étape combine les deux filtrages finaux de 'data1' pour créer 'data1_filtered'
-data1_filtered = data1[
-    non_outlier_mask
-    & data1["primaryProfession"].str.contains(
-        "actor|actress", case=False, na=False, regex=True
+with ActeursParFilm as (
+    select tp.tconst, group_concat(nb.primaryName, ', ') as NomsActeurs
+    from title.principals.tsv as tp
+    join name.basics.tsv as nb on tp.nconst = nb.nconst
+    where tp.category in ('actor', 'actress')
+    group by tp.tconst
+    ),
+    RealisateursParFilm as (
+    select tp.tconst, group_concat(nb.primaryName, ', ') as NomsRealisateurs
+    from title.principals.tsv as tp
+    join name.basics.tsv as nb on tp.nconst = nb.nconst
+    where tp.category = 'director'
+    group by tp.tconst
     )
-].copy()  # Utiliser .copy() pour éviter les SettingWithCopyWarning
-
-# Création de titles_df
-
-query = """
-select * from title.basics.tsv
+select tf.*, apf.NomsActeurs, rpf.NomsRealisateurs
+from tmdb_full.csv as tf
+left join ActeursParFilm as apf on tf.imdb_id = apf.tconst
+left join RealisateursParFilm as rpf on tf.imdb_id = rpf.tconst
+where tf.adult = False
+and tf.status IN ('Released', 'In Production', 'Post Production')
+and tf.runtime BETWEEN 70 AND 220
+and tf.spoken_languages like '%fr%'
 """
-titles_df = con.execute(query).df()
-
-# --- Préparation des tables avant la jointure ---
-
-# Filtrer pour inclure uniquement les acteurs/actrices ET supprimer les NaN dans 'knownForTitles'
-# La colonne data1["primaryProfession"] a déjà été utilisée pour créer data1_filtered.
-# Ici, nous partons de data1_filtered pour ne conserver que les acteurs valides avec knownForTitles.
-acteurs_df_cleaned = data1_filtered.dropna(subset=["knownForTitles"]).copy()
-# Appliquez la conversion de chaîne et le remplacement sur cette copie propre
-acteurs_df_cleaned.loc[:, "knownForTitles"] = (
-    acteurs_df_cleaned["knownForTitles"].astype(str).replace("nan", "")
+df = con.execute(query).df()
+# Suppression des colonnes qui ne serviront pas
+df.drop(
+    ["adult", "production_companies_country", "homepage", "video", "tagline"],
+    axis=1,
+    inplace=True,
 )
-# Éclater 'knownForTitles'
-# Chaque ligne représentera un acteur associé à UN SEUL titre connu.
-acteurs_expanded_titles = acteurs_df_cleaned.assign(
-    tconst=acteurs_df_cleaned["knownForTitles"].str.split(",")
-).explode("tconst")
-acteurs_expanded_titles["tconst"] = acteurs_expanded_titles[
-    "tconst"
-].str.strip()  # Supprimer les espaces blancs autour des tconst
-# Supprimer les lignes où tconst est vide après le split (ex: si 'knownForTitles' était ',,')
-acteurs_expanded_titles = acteurs_expanded_titles[
-    acteurs_expanded_titles["tconst"] != ""
-]
-# SÉLECTIONNER LES COLONNES POUR actors_expanded_titles avant la jointure principale
-# Pour s'assurer que seules les colonnes avec les types de données appropriés sont incluses
-# et éviter les colonnes redondantes ou de type problématique pour le parquet.
-acteurs_expanded_titles = acteurs_expanded_titles[
-    [
-        "nconst",
-        "primaryName",
-        "birthYear",
-        "deathYear",  # Ces colonnes sont maintenant Int64
-        "primaryProfession",
-        "age_deces",
-        "age_actuel",
-        "tconst",
+# Remplacer des \N par None
+df.replace({"\\N": None}, inplace=True)
+# Supprimer les lignes où 'release_date' est nulle
+df.dropna(subset=["release_date"], inplace=True)
+# Remplacement des valeurs none en liste vide pour overview
+df["overview"] = df["overview"].fillna("")
+# Création d'une colonne décennie
+# Calculez l'année, divisez par 10, prenez la partie entière, multipliez par 10
+df["decennie"] = (df["release_date"].dt.year // 10) * 10
+# Et on garde seulement les films à partir de 1960
+df = df[df["decennie"] >= 1960]
+
+
+# On crée une colonne qui comprend les noms et prénoms collés
+# Fonction pour transformer une liste de noms
+def transformer_noms(liste_noms_str):
+    if pd.isna(liste_noms_str) or not liste_noms_str.strip():
+        return None  # Ou une chaîne vide, selon ce que vous préférez pour les valeurs manquantes
+    # Séparer la chaîne en noms individuels par la virgule
+    noms_individuels = [nom.strip() for nom in liste_noms_str.split(",")]
+    # Transformer chaque nom (remplacer les espaces par des underscores)
+    noms_colles = [nom.replace(" ", "_") for nom in noms_individuels]
+    # Rejoindre les noms transformés avec une virgule et un espace
+    return ", ".join(noms_colles)
+
+
+# Appliquer la fonction aux colonnes 'NomsActeurs' et 'NomsRealisateurs'
+df["NomsActeurs_colle"] = df["NomsActeurs"].apply(transformer_noms)
+df["NomsRealisateurs_colle"] = df["NomsRealisateurs"].apply(transformer_noms)
+
+
+# Fonction pour nettoyer et joindre les genres
+def nettoyer_genre(genre_str):
+    if pd.isna(genre_str) or not genre_str.strip():
+        return None  # Ou une chaîne vide si vous préférez
+    # Évaluer la chaîne comme une liste Python (si elle est au format '[genre1, genre2]')
+    try:
+        genre_list = ast.literal_eval(genre_str)
+    except (ValueError, SyntaxError):
+        # Si ce n'est pas une chaîne de liste valide, traitez-la comme une chaîne simple
+        # Par exemple, si c'est juste 'Comedy' sans crochets
+        genre_list = [genre_str.strip()]
+    # Assurez-vous que c'est bien une liste
+    if not isinstance(genre_list, list):
+        genre_list = [
+            str(genre_list).strip()
+        ]  # Convertir en liste si ce n'était pas une liste
+    # Nettoyer chaque genre (supprimer les espaces) et joindre
+    # Vous pouvez ajouter .replace(' ', '_') si vous voulez coller les mots dans un même genre (ex: 'Science Fiction' -> 'Science_Fiction')
+    # Mais d'habitude les genres sont des mots simples ou des paires.
+    genres_propres = [
+        g.strip().replace(" ", "_") for g in genre_list if g.strip()
+    ]  # Optionnel: coller les mots dans le genre
+    return ", ".join(genres_propres) if genres_propres else None
+
+
+# Appliquer la fonction à la colonne 'genre'
+df["genre_propre"] = df["genres"].apply(nettoyer_genre)
+
+
+# Fonction pour nettoyer et joindre les noms de compagnies de production
+def nettoyer_compagnies(compagnies_str):
+    if pd.isna(compagnies_str) or not compagnies_str.strip():
+        return None  # Retourne None pour les valeurs manquantes/vides
+    try:
+        # Tente d'évaluer la chaîne comme une liste Python
+        compagnies_list = ast.literal_eval(compagnies_str)
+    except (ValueError, SyntaxError):
+        # Si ce n'est pas une chaîne de liste valide, la traiter comme une chaîne simple
+        compagnies_list = [compagnies_str.strip()]
+    # S'assurer que le résultat est bien une liste
+    if not isinstance(compagnies_list, list):
+        compagnies_list = [
+            str(compagnies_list).strip()
+        ]  # Convertir en liste si ce n'était pas une liste
+    # Nettoyer chaque nom de compagnie (supprimer les espaces) et joindre
+    # Nous allons aussi remplacer les espaces par des underscores dans les noms de compagnies si elles ont plusieurs mots
+    compagnies_propres = [
+        c.strip().replace(" ", "_") for c in compagnies_list if c.strip()
     ]
-].copy()  # Utiliser .copy() ici aussi pour être sûr
-# Nettoyage et préparation de titles_df (les titres)
-titles_df_cleaned = titles_df.copy()  # Travailler sur une copie
-# Convertir 'startYear' en numérique et gérer les erreurs (coerce les erreurs en NaN)
-titles_df_cleaned["startYear"] = pd.to_numeric(
-    titles_df_cleaned["startYear"], errors="coerce"
-).astype("Int64")
-# Supprimer les lignes où 'startYear' est NaN, car nous en avons besoin pour la décennie et les analyses temporelles
-titles_df_cleaned = titles_df_cleaned.dropna(subset=["startYear"])
-# Calculer la décennie
-titles_df_cleaned["decade"] = (titles_df_cleaned["startYear"] // 10 * 10).astype(int)
+    return ", ".join(compagnies_propres) if compagnies_propres else None
 
-# Jointure des deux dataframes
 
-# Joindre 'acteurs_expanded_titles' avec 'titles_df_cleaned' sur 'tconst'.
-# Cela va créer un dataframe où chaque ligne est une association acteur-titre
-# avec toutes les informations pertinentes des deux côtés.
-acteurs_complet_df = pd.merge(
-    acteurs_expanded_titles,
-    titles_df_cleaned[
-        ["tconst", "primaryTitle", "titleType", "startYear", "genres", "decade"]
-    ],
-    on="tconst",
-    how="inner",  # Utilisez inner pour ne garder que les correspondances valides dans les deux jeux de données
+# Appliquer la fonction à la colonne 'production_companies_name'
+df["production_companies_name_propre"] = df["production_companies_name"].apply(
+    nettoyer_compagnies
 )
-# Ajout de colonnes d'analyse (Cinéma/Séries)
-# Ajout de flags pour faciliter le regroupement par type de production
-acteurs_complet_df["is_movie"] = acteurs_complet_df["titleType"] == "movie"
-acteurs_complet_df["is_tv_series"] = acteurs_complet_df["titleType"] == "tvSeries"
-
-# Gestion des \N de la colonne genre sur le df finale
-acteurs_complet_df.replace({"\\N": None}, inplace=True)
-# Supprimer les lignes où la colonne 'Genres' contient None
-acteurs_complet_df.dropna(subset=["genres"], inplace=True)
-
-# Nomination des colonnes pour le dataframe final
-acteurs_complet_df = acteurs_complet_df.rename(
-    columns={
-        "nconst": "ID_Acteur",
-        "primaryName": "Nom",
-        "birthYear": "Annee_naissance",
-        "deathYear": "Annee_deces",
-        "primaryProfession": "Profession",
-        "age_deces": "Age_deces",
-        "age_actuel": "Age_actuel",
-        "tconst": "ID_titre",
-        "primaryTitle": "Titre",
-        "titleType": "Type",
-        "startYear": "Annee_sortie",
-        "genres": "Genres",
-        "is_movie": "Film?",
-        "is_tv_series": "Serie?",
-    }
+# Remplacement des valeurs none en liste vide pour production_compagniers_name
+df["production_companies_name_propre"] = df["production_companies_name_propre"].fillna(
+    ""
 )
+# Remplacement des valeurs none en liste vide pour NomsActeurs_colle
+df["NomsActeurs_colle"] = df["NomsActeurs_colle"].fillna("")
+# Remplacement des valeurs none en liste vide pour NomsRealisateurs_colle
+df["NomsRealisateurs_colle"] = df["NomsRealisateurs_colle"].fillna("")
+# Remplacement des valeurs none en liste vide pour genre_propre
+df["genre_propre"] = df["genre_propre"].fillna("")
+# Convertir 'decennie' en chaîne de caractères, car on ne peut concaténer que des chaînes
+df["decennie"] = df["decennie"].astype(str)
+# Créer la nouvelle colonne combinée
+# Nous allons ajouter des séparateurs (par exemple, un espace ou un point-virgule) pour la lisibilité
+df["colonne_combine"] = (
+    df["overview"]
+    + " "
+    + df["genre_propre"]
+    + " "
+    + df["decennie"]
+    + " "
+    + df["NomsRealisateurs_colle"]
+    + " "
+    + df["NomsActeurs_colle"]
+    + " "
+    + df["production_companies_name_propre"]
+)
+df = df.reset_index(drop=True)
 
-# Base de données des acteurs complète
-
+# Création du fichier reco
 try:
-    acteurs_complet_df.to_parquet(
-        "acteurs.parquet", index=False
+    df.to_parquet(
+        "reco", index=False
     )  # index=False est souvent une bonne pratique pour Parquet
-    print("\nDataFrame 'acteurs_complet_df' sauvegardé avec succès au format Parquet.")
+    print("\nDataFrame 'reco' sauvegardé avec succès au format Parquet.")
 except Exception as e:
     print(f"\nErreur lors de la sauvegarde au format Parquet : {e}")
 
+# Créer un nouveau DataFrame avec uniquement la colonne 'colonne_combine'
+df_combined_text = df[["colonne_combine"]]
 
-# Vous avez maintenant 'acteurs_complet_df' qui est votre dataframe pour toutes les analyses futures.
-# Il contient:
-# - Informations sur l'acteur (nconst, primaryName, birthYear, deathYear, primaryProfession, age_deces, age_actuel)
-# - L'identifiant du titre (tconst)
-# - Informations sur le titre (primaryTitle, titleType, startYear, genres, decade)
-# - Indicateurs is_movie et is_tv_series
-
-# --- Exemple d'analyse que vous pouvez faire avec ce dataframe ---
-
-# 1. Nombre de films/séries par acteur
-# print("\nNombre de films/séries par acteur (Top 10) :")
-# print(acteurs_complet_df['primaryName'].value_counts().head(10))
-
-# 2. Acteurs uniques qui ont joué dans des films
-# print("\nActeurs uniques ayant joué dans des films (Top 10) :")
-# print(acteurs_complet_df[acteurs_complet_df['is_movie']]['primaryName'].nunique())
-
-# 3. Répartition des genres par décennie pour les films d'acteurs
-# print("\nRépartition des genres de films par décennie (Top 5 genres pour 2000s) :")
-# film_genres_2000s = acteurs_complet_df[(acteurs_complet_df['is_movie']) & (acteurs_complet_df['decade'] == 2000)]
-# print(film_genres_2000s['genres'].str.split(',').explode().value_counts().head())
-
-# --- Thème film ---
-
-# Création de film_fr_tmdb
-query = """
-SELECT *
-from tmdb_full.csv 
-where adult = 'False'
-"""
-film_notadult = con.execute(query).df()
-# Nettoyage du df sur runtime
-Q1 = film_notadult["runtime"].quantile(0.25)
-Q3 = film_notadult["runtime"].quantile(0.75)
-IQR = Q3 - Q1
-borne_inf = Q1 - 1.5 * IQR
-borne_sup_iqr = Q3 + 1.5 * IQR
-# Créez une COPIE explicite ici pour garantir l'indépendance
-film_notadult_cleaned = film_notadult[
-    (film_notadult["runtime"] >= borne_inf)
-    & (film_notadult["runtime"] <= borne_sup_iqr)
-].copy()
-film_notadult = (
-    film_notadult_cleaned  # Mise à jour de votre DataFrame avec les données nettoyées
-)
-# Suppression de la ligne dont le status = canceled
-# Utilisez .copy() ici aussi si cette opération est susceptible de créer une vue
-film_notadult = film_notadult[
-    ~film_notadult["status"].str.contains("Canceled", case=True)
-].copy()
-# Suppression de la colonne adult
-film_notadult.drop(columns="adult", inplace=True)
-# Création d'un DataFrame contenant que les films dont spoken_language = fr
-film_fr_tmdb = film_notadult[
-    film_notadult["spoken_languages"].str.contains("'fr'", regex=False)
-]
-# Traitement des genres
-lignes_avec_fr_vide = film_fr_tmdb[film_fr_tmdb["genres"] == "[]"]
-# Supposons que 'lignes_avec_fr_vide' contienne les lignes à supprimer
-indices_a_supprimer = lignes_avec_fr_vide.index
-# Supprimer les lignes du dataframe original en utilisant les indices
-film_fr_tmdb = film_fr_tmdb.drop(indices_a_supprimer)
-new_genres = []
-for var in film_fr_tmdb["genres"]:
-    liste = eval(var)
-    new_genres.append(liste)
-film_fr_tmdb["genres"] = new_genres
-film_fr_tmdb["genres"] = film_fr_tmdb["genres"].astype(str).str.replace("[", "[ ")
-film_fr_tmdb["genres"] = film_fr_tmdb["genres"].astype(str).str.replace("]", " ]")
-# Suppression des TVmovie
-tv_movies = film_fr_tmdb[film_fr_tmdb["genres"].apply(lambda x: "TV Movie" in x)]
-# Supprimer les films qui ont le genre 'TV Movie' du DataFrame original
-film_fr_tmdb = film_fr_tmdb.drop(tv_movies.index)
-# Enregistrement du dataset
 try:
-    film_fr_tmdb.to_parquet(
-        "film_fr_tmdb.parquet", index=False
+    df_combined_text.to_parquet(
+        "reco_combinee", index=False
     )  # index=False est souvent une bonne pratique pour Parquet
-    print("\nDataFrame 'film_fr_tmdb' sauvegardé avec succès au format Parquet.")
+    print("\nDataFrame 'reco_combinee' sauvegardé avec succès au format Parquet.")
 except Exception as e:
     print(f"\nErreur lors de la sauvegarde au format Parquet : {e}")
+
 
 con.close()

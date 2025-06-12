@@ -6,4 +6,8 @@ plotly==6.1.1
 requests==2.32.3
 seaborn==0.13.2
 streamlit==1.45.1
+scikit-learn==1.6.1
+regex==2024.11.6
+joblib==1.5.1
+wordcloud==1.9.4
 streamlit-option-menu==0.4.0

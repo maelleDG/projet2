@@ -3,8 +3,14 @@ import streamlit as st
 
 st.set_page_config(page_title="Projet2", page_icon="🎥", layout="wide")
 
-st.title("🎥 Bienvenue à notre Projet 2")
-st.write("## Par Antoine, Evi, Marie et Maëlle")
+st.markdown(
+    "<h1 style='text-align: center;'>🎥 Bienvenue à notre Projet 2</h1>",
+    unsafe_allow_html=True,
+)
+st.markdown(
+    "<h2 style='text-align: center;'> Par Antoine, Evi, Marie et Maëlle</h2>",
+    unsafe_allow_html=True,
+)
 
 st.markdown(
     """
@@ -27,7 +33,7 @@ st.markdown(
         - Identifier le top 10 des acteurs/actrices les plus représentatifs
         - Identifier les genres dominants pour les acteurs/actrices
         - Étudier l’évolution de la durée des films
-        - Repérer les films les mieux notés et ce qu’ils ont en commun
+        - Identifier le top 10 des films les mieux notés
 
         ---
 
