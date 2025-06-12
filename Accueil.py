@@ -1,16 +1,33 @@
-from streamlit_option_menu import option_menu
 import streamlit as st
 
 st.set_page_config(page_title="Projet2", page_icon="🎥", layout="wide")
 
-st.markdown(
-    "<h1 style='text-align: center;'>🎥 Bienvenue à notre Projet 2</h1>",
-    unsafe_allow_html=True,
-)
-st.markdown(
-    "<h2 style='text-align: center;'> Par Antoine, Evi, Marie et Maëlle</h2>",
-    unsafe_allow_html=True,
-)
+col_left_spacer, col_content, col_right_spacer = st.columns([1, 3, 1])
+with col_content:
+    # À l'intérieur de cette colonne centrale, créez deux colonnes supplémentaires :
+    # une pour votre logo et une pour votre texte.
+    # Ajustez les ratios [1, 2] pour contrôler la largeur relative du logo et du texte.
+    logo_col, text_col = st.columns([1, 2])
+
+    with logo_col:
+        # Vous pouvez ajuster la 'width' (largeur) du logo.
+        st.image("logo_team.png", width=800)
+
+    with text_col:
+        # Le texte est déjà centré horizontalement grâce à 'text-align: center;'.
+        # Pour tenter de centrer le bloc de texte verticalement par rapport au logo,
+        # nous utilisons un conteneur HTML avec Flexbox. Cela peut aider à aligner
+        # le contenu verticalement au centre de la colonne.
+        st.markdown(
+            """
+            <div style='display: flex; flex-direction: column; justify-content: center; height: 100%;'>
+                <h1 style='text-align: center; margin-bottom: 0;'>Bienvenue à notre Projet 2</h1>
+                <h2 style='text-align: center; margin-top: 0;'> Par Antoine, Evi, Marie et Maëlle</h2>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
 
 st.markdown(
     """
