@@ -43,20 +43,7 @@ selected = option_menu(
 
 if selected == "Population":
 
-    # SLIDE 1
-    selected = option_menu(
-        menu_title=None,
-        options=[
-            "Population par grandes tranches d'âges",
-            "Age et genre de la population Creusoise",
-            "Composition des ménages",
-            "Comparaison de l'âge de la population entre la France et la Creuse",
-        ],
-        default_index=0,
-        orientation="vertical",
-    )
-
-    if selected == "Population par grandes tranches d'âges":
+    with st.expander("Population par grandes tranches d'âges"):
         slide1 = pd.read_csv("slide 1 - Feuille 1.csv")
         slide1_1 = pd.read_csv("slide 1 - Feuille 2.csv")
         st.subheader("Population par grandes tranches d'âges")
@@ -66,7 +53,7 @@ if selected == "Population":
         col1, col2 = st.columns(2)
         with col1:
             st.html(
-                """<p style="text-align: center;"><small>Evolution de la population</small>"""
+                """<p style="text-align: center;"><small><b>Evolution de la population</small></b>"""
             )
             slide1.set_index("Tranche_Âge", inplace=True)
             fig, ax = plt.subplots(figsize=(10, 6))
@@ -89,11 +76,12 @@ if selected == "Population":
         with col2:
             slide1_1.set_index("Tranche_Âge", inplace=True)
             st.html(
-                """<p style="text-align: center;"><small>Répartition par tranche d'âge pour 2021</small>"""
+                """<p style="text-align: center;"><small><b>Répartition par tranche d'âge pour 2021</small></b>"""
             )
             fig, ax = plt.subplots(figsize=(10, 6))
             plt.rcParams["font.family"] = "Arial"
             plt.rcParams["font.size"] = 14
+
             wedges, texts, autotexts = ax.pie(
                 slide1_1["2021"],
                 labels=slide1_1.index,
@@ -144,7 +132,7 @@ if selected == "Population":
         col1, col2 = st.columns(2)
         with col1:
             st.html(
-                """<p style="text-align: center;"><small>Moyenne sur les trois dernières années</small>"""
+                """<p style="text-align: center;"><small><b>Moyenne sur les trois dernières années</small></b>"""
             )
             fig.patch.set_facecolor("none")
             ax.set_facecolor("none")
@@ -161,7 +149,8 @@ if selected == "Population":
             )
 
     # SLIDE 2
-    elif selected == "Age et genre de la population Creusoise":
+    with st.expander("Age et genre de la population Creusoise"):
+
         slide2 = pd.read_csv("Slide2 - Feuille 1.csv")
         st.subheader("Age et genre de la population Creusoise")
         st.html(
@@ -181,7 +170,7 @@ if selected == "Population":
             labels=[f"{h:.1f}%" for h in slide2["Hommes%"]],
             label_type="center",
             color="white",
-            fontsize=10,
+            fontsize=6,
         )
         bars_femmes = ax.bar(
             slide2["Tranche_Age"],
@@ -196,20 +185,25 @@ if selected == "Population":
             labels=[f"{f:.1f}%" for f in slide2["Femmes%"]],
             label_type="center",
             color="white",
-            fontsize=10,
+            fontsize=6,
         )
 
-        ax.set_xlabel("Tranche d'Âge", color="white", fontsize=10)
+        ax.set_xlabel("Tranche d'Âge", color="white", fontsize=6)
         st.html(
-            """<p style="text-align: center;"><small>Distribution de la population par genre et tranche d'âge</small>"""
+            """<p style="text-align: center;"><b>Distribution de la population par genre et tranche d'âge</b>"""
         )
         legend = ax.legend(
-            title="Genre", facecolor="#333333", labelcolor="white", fontsize=8
+            title="Genre",
+            facecolor="#333333",
+            labelcolor="white",
+            fontsize=6,
+            title_fontsize=7,
         )
         plt.setp(legend.get_title(), color="white", fontweight="bold")
         for spine in ax.spines.values():
             spine.set_edgecolor("white")
-        ax.tick_params(axis="x", colors="white", rotation=45, labelsize=8)
+        ax.tick_params(axis="x", colors="white", rotation=45, labelsize=6)
+        ax.set_yticklabels([])
         fig.patch.set_facecolor("none")
         ax.set_facecolor("none")
         plt.tight_layout()
@@ -219,9 +213,9 @@ if selected == "Population":
         )
 
     # SLIDE 3 / 4
-    elif (
-        selected
-        == "Population de 15 ans ou plus selon la catégorie socioprofessionnelle"
+
+    with st.expander(
+        "Population de 15 ans ou plus selon la catégorie socioprofessionnelle"
     ):
 
         st.subheader(
@@ -233,7 +227,7 @@ if selected == "Population":
                 deuxième constitué d’ouvriers et de professions intermédiaires (20,7%) et enfin pour le troisième, d'agriculteur, artisans, commerçants, cadres et autres professions intellectuelles (12,1%). <br><br> A noter que ces catégories restent stables au fil des années c’est-à-dire qu’il y a peu d'évolutions (faible baisse ou hausse).</p>"""
         )
         slide3 = pd.read_csv("Slide3 - Feuille 1.csv")
-        fig, ax = plt.subplots(figsize=(12, 8))
+        fig, ax = plt.subplots(figsize=(10, 4))
         for year in ["2010", "2015", "2021"]:
             ax.plot(
                 slide3["Categorie_socioprofessionnelle"],
@@ -242,16 +236,22 @@ if selected == "Population":
                 label=year,
             )
         st.html(
-            """<p style="text-align: center;"><small>Répartition des catégories socioprofessionnelles</small>"""
+            """<p style="text-align: center;"><b>Répartition des catégories socioprofessionnelles</b>"""
         )
         legend = ax.legend(
-            title="Année", loc="upper left", facecolor="#333333", labelcolor="white"
+            title="Année",
+            loc="upper left",
+            facecolor="#333333",
+            labelcolor="white",
+            fontsize=9,
+            title_fontsize=10,
         )
         plt.setp(legend.get_title(), color="white", fontweight="bold")
         for spine in ax.spines.values():
             spine.set_edgecolor("white")
-        ax.tick_params(axis="x", colors="white", rotation=30)
-        ax.tick_params(axis="y", colors="white")
+        ax.tick_params(axis="x", colors="white", rotation=30, labelsize=9)
+        ax.tick_params(axis="y", colors="white", labelsize=9)
+        plt.xticks(rotation=45, ha="right")
         fig.patch.set_facecolor("none")
         ax.grid(True, color="white")
         ax.set_facecolor("none")
@@ -262,7 +262,7 @@ if selected == "Population":
             """<p style="text-align: justify;"> En 2021, on peut constater que la Creuse présente forte ségrégation sexuée : certains secteurs sont clairement dominés par un sexe, comme les agriculteurs et les ouvriers (majorité masculine), et les employés (majorité féminine).<br><br> L'âge moyen des différentes catégories socioprofessionnelles semble varier considérablement. Les retraités sont majoritairement des personnes âgées, tandis que la catégorie "Autres personnes sans activité professionnelle" est dominée par les jeunes. Les professions intermédiaires et les employés ont une forte concentration dans la tranche d'âge actif (25-54 ans).<br><br>Pour la plupart des catégories professionnelles, la part des 25-54 ans est la plus élevée, ce qui est attendu car cela correspond à la population active.</p>"""
         )
         slide3_1 = pd.read_csv("Slide3 - Feuille 2.csv")
-        fig, ax = plt.subplots(figsize=(12, 8))
+        fig, ax = plt.subplots(figsize=(10, 4))
         slide3_1.plot(
             kind="bar",
             x="Catégorie socioprofessionnelle",
@@ -270,30 +270,39 @@ if selected == "Population":
             color=["darkcyan", "indianred"],
             ax=ax,
         )
-        legend = ax.legend(title="Genre", facecolor="#333333", labelcolor="white")
+        legend = ax.legend(
+            title="Genre",
+            loc="upper left",
+            facecolor="#333333",
+            labelcolor="white",
+            fontsize=9,
+            title_fontsize=10,
+        )
         plt.setp(legend.get_title(), color="white", fontweight="bold")
         plt.xticks(rotation=45, ha="right")
+        ax.set_xlabel(" ")
         st.html(
-            """<p style="text-align: center;"><small>Distribution selon la Catégorie Socioprofessionnelle par Genre</small>"""
+            """<p style="text-align: center;"><b>Distribution selon la Catégorie Socioprofessionnelle par Genre</b>"""
         )
         fig.patch.set_facecolor("none")
         ax.set_facecolor("none")
         for spine in ax.spines.values():
             spine.set_edgecolor("white")
-        ax.tick_params(axis="x", colors="white")
-        ax.tick_params(axis="y", colors="white")
+        ax.tick_params(axis="x", colors="white", labelsize=9)
+        ax.tick_params(axis="y", colors="white", labelsize=9)
         st.pyplot(fig)
 
     # SLIDE 5
-    elif selected == "Composition des ménages":
+    with st.expander("Composition des ménages"):
+
         slide5 = pd.read_csv("Slide5 - Feuille 1.csv")
         st.subheader("Composition des ménages")
         st.html(
             """<p style="text-align: justify;">La majorité des ménages est constituée de personnes seules (42% -> 50/50 hommes/femmes) non visibles sur le tableau ci-dessus composé de 50% de personnes de plus de 80 ans et de 30% de personnes entre 65 et 79 ans pour la Creuse. Cette catégorie est suivi des couples sans enfant. On retrouve ensuite les couples avec enfants et famille monoparentale.</b></p>"""
         )
 
-        fig, ax = plt.subplots(figsize=(12, 8))
-        bar_width = 0.7
+        fig, ax = plt.subplots(figsize=(13, 8))
+        bar_width = 0.5
         bars_gueret = ax.bar(
             slide5["Ménages"],
             slide5["Gueret"],
@@ -306,6 +315,7 @@ if selected == "Population":
             labels=[f"{h:.1f}%" for h in slide5["Gueret"]],
             label_type="center",
             color="white",
+            fontsize=8,
         )
         bars_creuse = ax.bar(
             slide5["Ménages"],
@@ -320,19 +330,26 @@ if selected == "Population":
             labels=[f"{f:.1f}%" for f in slide5["Creuse"]],
             label_type="center",
             color="white",
+            fontsize=8,
         )
 
         ax.set_xlabel("Ménages", color="white")
         st.html(
-            """<p style="text-align: center;"><small>Répartition des Ménages (Guéret et Creuse) </small>"""
+            """<p style="text-align: center;"><b>Répartition des Ménages (Guéret et Creuse) </b>"""
         )
         legend = ax.legend(
-            title="Genre", loc="upper right", facecolor="#333333", labelcolor="white"
+            title="Genre",
+            loc="upper right",
+            facecolor="#333333",
+            labelcolor="white",
+            fontsize=9,
+            title_fontsize=10,
         )
         plt.setp(legend.get_title(), color="white", fontweight="bold")
         for spine in ax.spines.values():
             spine.set_edgecolor("white")
-        ax.tick_params(axis="x", colors="white", rotation=45)
+        ax.tick_params(axis="x", colors="white", rotation=45, labelsize=9)
+        ax.set_xlabel(" ")
         fig.patch.set_facecolor("none")
         ax.set_facecolor("none")
         plt.tight_layout()
@@ -345,8 +362,9 @@ if selected == "Population":
         )
 
     # SLIDE 7
-    elif (
-        selected == "Comparaison de l'âge de la population entre la France et la Creuse"
+
+    with st.expander(
+        "Comparaison de l'âge de la population entre la France et la Creuse"
     ):
 
         st.subheader(
@@ -415,6 +433,7 @@ if selected == "Population":
         st.html(
             """<p style="text-align: justify;">Nous pouvons constater que la population est plus âgée qu’au niveau national. En 2021, le taux de personnes d’un âge inférieur à 30 ans s’élève à 25,5%, soit en dessous de la moyenne nationale (35,1%). A l’inverse, le taux de personnes d’âge supérieur à 60 ans est de 39,3%, alors qu’il est de 26,6% pour la France. </p>"""
         )
+
 
 ###################################
 ######ETUDE CINEMATOGRAPHIQUE######
