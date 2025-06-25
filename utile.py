@@ -78,6 +78,27 @@ try:
 except Exception as e:
     print(f"\nErreur lors de la sauvegarde au format Parquet : {e}")
 
+sample_fraction = 0.1  # Prendre 10% des lignes
+df_sampled = df_a50.sample(frac=sample_fraction, random_state=42)
+
+# --- Sauvegarde du DataFrame échantillonné au format Parquet ---
+file_name = (
+    "Duree_film_sample.parquet"  # Donnez un nom différent pour distinguer l'échantillon
+)
+
+try:
+    df_sampled.to_parquet(
+        file_name,
+        index=False,  # Ne pas inclure l'index du DataFrame dans le fichier Parquet
+    )
+    print(
+        f"DataFrame 'Duree_film_sample' (échantillonné) sauvegardé avec succès au format Parquet : {file_name}"
+    )
+except Exception as e:
+    print(
+        f"Erreur lors de la sauvegarde du DataFrame échantillonné au format Parquet : {e}"
+    )
+
 
 # --- Recommandation ---
 
