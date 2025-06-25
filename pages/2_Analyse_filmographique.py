@@ -36,7 +36,7 @@ with col2:
 if "datasets_dispo" not in st.session_state:
     st.session_state["datasets_dispo"] = {
         "Acteurs": pd.read_parquet("Top10acteurs"),
-        "Films": pd.read_parquet("Duree_film"),
+        "Films": pd.read_parquet("Duree_film_sample.parquet"),
     }
 
 # Création d'une liste de dataset
